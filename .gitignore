@@ -4,3 +4,5 @@ __pycache__/
 dist/
 build/
 assets/*.svg
+assets/*.png
+!assets/shot-*.png

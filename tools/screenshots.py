@@ -63,28 +63,35 @@ PALETTES = [
 
 
 def make_cover(index: int, path: Path) -> None:
-    """A generative cover per album: smooth diagonal gradient with one big
-    soft disc. Deliberately low-frequency — fine detail just aliases into
-    noise at half-cell resolution."""
+    """A generative cover per album: smooth diagonal gradient, a soft glow,
+    and one big translucent ring in an accent color. Deliberately
+    low-frequency — fine detail just aliases into noise in a terminal."""
     (c1, c2) = PALETTES[index % len(PALETTES)]
+    accent = PALETTES[(index + 3) % len(PALETTES)][0]
     size = 800
     img = Image.new("RGB", (size, size))
     px = img.load()
-    cx, cy = size * 0.62, size * 0.40
-    max_d = size * 0.55
+    cx, cy = size * 0.64, size * 0.36
+    max_d = size * 0.6
     for y in range(size):
         for x in range(0, size, 4):  # 4px columns keep this fast
             t = (x + y) / (2 * size)
             base = [a + (b - a) * t for a, b in zip(c1, c2)]
             d = math.hypot(x - cx, y - cy) / max_d
-            glow = max(0.0, 1.0 - d) ** 2 * 0.55
-            col = tuple(round(v + (250 - v) * glow) for v in base)
+            glow = max(0.0, 1.0 - d) ** 2 * 0.5
+            col = tuple(round(v + (252 - v) * glow) for v in base)
             for dx in range(4):
                 if x + dx < size:
                     px[x + dx, y] = col
-    draw = ImageDraw.Draw(img)
-    r = size * 0.045
-    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(30, 30, 46))
+    ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    rdraw = ImageDraw.Draw(ring)
+    rx, ry, rr = size * 0.34, size * 0.66, size * 0.30
+    rdraw.ellipse(
+        (rx - rr, ry - rr, rx + rr, ry + rr),
+        outline=(*accent, 110),
+        width=round(size * 0.035),
+    )
+    img = Image.alpha_composite(img.convert("RGBA"), ring).convert("RGB")
     img.save(path, "PNG")
 
 

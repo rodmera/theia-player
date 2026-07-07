@@ -7,7 +7,7 @@
 Cover art rendered right in your terminal, playback through mpv, five themes
 via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 
-<img src="assets/main.png" alt="NaviTui" width="100%">
+<img src="assets/shot-main.png" alt="NaviTui" width="100%">
 
 </div>
 
@@ -39,8 +39,8 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
   own ANSI palette)
 
 <div align="center">
-<img src="assets/search.png" alt="search" width="49%">
-<img src="assets/onboarding.png" alt="onboarding" width="49%">
+<img src="assets/shot-search.png" alt="search" width="49%">
+<img src="assets/shot-void.png" alt="void theme" width="49%">
 </div>
 
 ## install

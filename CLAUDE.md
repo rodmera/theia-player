@@ -22,8 +22,11 @@ Design priorities, in order:
 
 - **No AI attribution in commits.** No `Co-Authored-By`, no "generated with"
   trailers. Commit as the repo owner.
-- **README screenshots come from `tools/screenshots.py`** (mocked client,
-  generated art, zero network) — never from a real library.
+- **README screenshots come from the tools, never a real library.**
+  `tools/shots.sh` captures the real app in kitty on an empty Hyprland
+  workspace (true pixel cover art) via `tools/demo.py`'s posed states;
+  `tools/screenshots.py` is the headless SVG fallback. Both use the mocked
+  client and generated art — zero network, zero real data.
 - **mpv callbacks arrive on mpv's thread.** Anything touching the UI must be
   scheduled with `loop.call_soon_threadsafe` — never a blocking call (see
   `_mpv_position`/`_mpv_track_end` and the sharp-edges table below).
@@ -43,7 +46,9 @@ navitui/widgets.py    Logo, Visualizer, NowPlaying (the animated transport)
 navitui/art.py        CoverArt widget, protocol picking, NAVITUI_ART override
 navitui/screens.py    onboarding (validates live, stores chmod 600) + search
 navitui/models.py     dataclasses that round-trip through the JSON cache
-tools/screenshots.py  README asset generator (fake data, real playback)
+tools/screenshots.py  headless SVG screenshot generator + FakeClient
+tools/demo.py         poses the real app in a real terminal (states: main/albums/search/void)
+tools/shots.sh        captures those states with grim → assets/shot-*.png
 ```
 
 ## sharp edges (beyond ricekit's DESIGN.md table)
