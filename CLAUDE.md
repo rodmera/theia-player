@@ -163,6 +163,19 @@ El proyecto cuenta con un validador automatizado en modo headless que ejecuta un
 
 *Nota técnica: Se corrigió quirúrgicamente un bug heredado en este script, actualizando la selección de foco al ID correcto (`#pane1-list` → `#sidebar-list`). La suite ahora pasa limpia con código de salida `0` (exit 0).*
 
+## Compilación y Distribución (Build Standalone Binary)
+
+Para distribuir el reproductor como un **único archivo binario de terminal autocontenido** (idéntico a `fzf` o `ripgrep`), de modo que no requiera instalar Python ni dependencias en la máquina destino del usuario, puedes compilarlo ejecutando:
+
+```bash
+.venv/bin/python tools/package_mac.py
+```
+
+*   **Linux:** Generará el ejecutable binario nativo (ELF) en `dist/theia-player`.
+*   **macOS:** Generará el ejecutable binario nativo (Mach-O) en `dist/theia-player` (compilado de forma nativa para Apple Silicon o Intel según la arquitectura de la Mac que lo compile).
+
+*Nota: El script de empaquetado instala automáticamente PyInstaller de forma asilada en tu venv de desarrollo, compila reuniendo todos los sub-paquetes locales (`theiaplayer` y `ricekit`) y las hojas de estilo estáticas de Textual (`--collect-data textual`), y limpia todos los archivos temporales de compilación al finalizar.*
+
 ## Actualizar desde upstream
 
 ```bash
