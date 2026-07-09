@@ -29,7 +29,7 @@ os.environ["NAVITUI_ART"] = "halfcell"
 
 from PIL import Image, ImageDraw  # noqa: E402
 
-from navitui.models import Album, Artist, Playlist, SearchResults, Song  # noqa: E402
+from theiaplayer.models import Album, Artist, Playlist, SearchResults, Song  # noqa: E402
 
 ASSETS = REPO / "assets"
 
@@ -241,9 +241,9 @@ class FakeClient:
 
 async def shoot_main() -> None:
     """Main view + search + void theme, one app session."""
-    from navitui.app import NaviTuiApp
+    from theiaplayer.app import TheIAPlayerApp
 
-    app = NaviTuiApp(client=FakeClient(), ao="null")
+    app = TheIAPlayerApp(client=FakeClient(), ao="null")
     async with app.run_test(size=(132, 38)) as pilot:
         await pilot.pause(0.8)
         app.query_one("#sidebar-list").focus()
@@ -271,10 +271,10 @@ async def shoot_main() -> None:
 
 
 async def shoot_onboarding() -> None:
-    from navitui.app import NaviTuiApp
-    from navitui.screens import OnboardingScreen
+    from theiaplayer.app import TheIAPlayerApp
+    from theiaplayer.screens import OnboardingScreen
 
-    app = NaviTuiApp(ao="null")
+    app = TheIAPlayerApp(ao="null")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause(0.6)
         assert isinstance(app.screen, OnboardingScreen)

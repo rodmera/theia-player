@@ -17,7 +17,7 @@ from pathlib import Path
 
 import httpx
 
-from navitui.models import Album, Artist, Playlist, SearchResults, Song
+from theiaplayer.models import Album, Artist, Playlist, SearchResults, Song
 
 API_VERSION = "1.16.1"
 CLIENT_NAME = "theia-player"

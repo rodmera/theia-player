@@ -10,6 +10,6 @@ __version__ = "0.3.0"
 
 
 def main() -> None:
-    from navitui.app import main as run
+    from theiaplayer.app import main as run
 
     run()

@@ -31,7 +31,7 @@ except Exception:
     MPRIS_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from navitui.models import Song
+    from theiaplayer.models import Song
 
 BUS_NAME = "org.mpris.MediaPlayer2.theia-player"
 OBJECT_PATH = "/org/mpris/MediaPlayer2"

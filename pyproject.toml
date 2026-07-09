@@ -38,7 +38,7 @@ Repository = "https://github.com/rodmera/theia-player"
 Issues = "https://github.com/rodmera/theia-player/issues"
 
 [project.scripts]
-theia-player = "navitui:main"
+theia-player = "theiaplayer:main"
 
 [tool.setuptools]
-packages = ["navitui", "ricekit"]
+packages = ["theiaplayer", "ricekit"]

@@ -16,9 +16,9 @@ from textual.widgets import Static
 from ricekit import icons, palette
 from ricekit.widgets import NavList
 
-from navitui import anim
-from navitui.models import Song
-from navitui.playqueue import Repeat
+from theiaplayer import anim
+from theiaplayer.models import Song
+from theiaplayer.playqueue import Repeat
 
 SHUFFLE_ICON = "\uf074"  # nf-fa-random
 REPEAT_ICON = "\uf01e"  # nf-fa-repeat

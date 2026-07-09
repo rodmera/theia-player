@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from enum import Enum
 
-from navitui.models import Song
+from theiaplayer.models import Song
 
 
 class Repeat(Enum):

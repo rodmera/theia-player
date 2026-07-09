@@ -196,7 +196,7 @@ def write_default(config_dir: Path) -> None:
 # ── binding builder ───────────────────────────────────────────────────────────
 
 def build_bindings(keybinds: dict):
-    """Return a BINDINGS list for NaviTuiApp using the merged keybind map."""
+    """Return a BINDINGS list for TheIAPlayerApp using the merged keybind map."""
     from textual.binding import Binding
     kb = {**DEFAULT_KEYBINDS, **keybinds}
     return [

@@ -28,13 +28,13 @@ from ricekit.modals import HelpModal, PickerModal
 from ricekit.storage import AppDirs
 from ricekit.widgets import NavList, Splitter
 
-from navitui import anim, config as playerconfig, discord_rpc, mpris as mprismod, player as playermod
-from navitui.api import SubsonicClient, SubsonicError
-from navitui.art import CoverArt
-from navitui.models import Album, Artist, Playlist, Song
-from navitui.playqueue import PlayQueue
-from navitui.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal
-from navitui.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
+from theiaplayer import anim, config as playerconfig, discord_rpc, mpris as mprismod, player as playermod
+from theiaplayer.api import SubsonicClient, SubsonicError
+from theiaplayer.art import CoverArt
+from theiaplayer.models import Album, Artist, Playlist, Song
+from theiaplayer.playqueue import PlayQueue
+from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal
+from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
 
 VIEWS = [
     ("all-songs", "all tracks"),
@@ -101,7 +101,7 @@ HELP_SECTIONS = [
 
 APP_STARTED: bool = False
 
-class NaviTuiApp(KitApp):
+class TheIAPlayerApp(KitApp):
     TITLE = "theia-player"
 
     BINDINGS = [
@@ -163,7 +163,7 @@ class NaviTuiApp(KitApp):
         self.dirs = AppDirs("theia-player")
         _pcfg = playerconfig.load(self.dirs.config_file.parent)
         playerconfig.write_default(self.dirs.config_file.parent)
-        NaviTuiApp.BINDINGS = playerconfig.build_bindings(_pcfg.get("keybinds", {}))
+        TheIAPlayerApp.BINDINGS = playerconfig.build_bindings(_pcfg.get("keybinds", {}))
 
         super().__init__()
         self._pcfg = _pcfg
@@ -1355,7 +1355,7 @@ def main() -> None:
         t.start()
         
         # Ejecutar la aplicacion
-        NaviTuiApp().run()
+        TheIAPlayerApp().run()
         
     except Exception as e:
         # CAPTURAR CUALQUIER EXCEPCIÓN DEL ARRANQUE Y GUARDARLA AL LOG

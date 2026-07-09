@@ -19,10 +19,10 @@ from textual.widgets.option_list import Option
 from ricekit import icons, palette
 from ricekit.widgets import NavList, pop_in
 
-from navitui import anim
-from navitui.api import SubsonicError, make_token, normalize_server
-from navitui.models import SearchResults
-from navitui.widgets import Logo, Visualizer
+from theiaplayer import anim
+from theiaplayer.api import SubsonicError, make_token, normalize_server
+from theiaplayer.models import SearchResults
+from theiaplayer.widgets import Logo, Visualizer
 
 
 def settle_pop_in(screen, box_selector: str) -> None:
@@ -125,7 +125,7 @@ class OnboardingScreen(Screen):
     async def _connect(self, server: str, username: str, password: str) -> None:
         import httpx
 
-        from navitui.api import SubsonicClient
+        from theiaplayer.api import SubsonicClient
 
         server = normalize_server(server)
         token, salt = make_token(password)

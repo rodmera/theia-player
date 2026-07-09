@@ -1,9 +1,9 @@
 # CLAUDE.md — theia-player
 
-Fork de [NaviTui](https://github.com/Gheat1/NaviTui). TUI music player para Navidrome/Subsonic, escrito en Python con Textual + libmpv.
+Fork de [theia-player](https://github.com/Gheat1/theia-player). TUI music player para Navidrome/Subsonic, escrito en Python con Textual + libmpv.
 
 **Repo:** `github.com/rodmera/theia-player`
-**Upstream:** `github.com/Gheat1/NaviTui` (remote `upstream`) — hacer `git fetch upstream` para traer cambios futuros
+**Upstream:** `github.com/Gheat1/theia-player` (remote `upstream`) — hacer `git fetch upstream` para traer cambios futuros
 
 ## Requisitos del Sistema (OS Dependencies)
 
@@ -24,18 +24,18 @@ A diferencia de `theia-subtui` (que invoca al reproductor CLI estándar por subp
 ## Arquitectura
 
 ```
-navitui/app.py         layout, workers, playback glue, keybindings
-navitui/api.py         cliente async Subsonic (httpx), token auth, cache de covers
-navitui/player.py      wrapper libmpv + NullPlayer fallback si mpv no está
-navitui/playqueue.py   lógica de cola/shuffle/repeat — sin UI, puro lógica
-navitui/config.py      carga player.toml; build_bindings() genera BINDINGS desde config
-navitui/mpris.py       MPRIS2 D-Bus bidireccional (dbus-python); GLib loop en hilo daemon
-navitui/discord_rpc.py Discord Rich Presence via pypresence; no-op si no está instalado
-navitui/anim.py        primitivas de animación: shimmer, smooth_bar, marquee, viz
-navitui/widgets.py     Logo, Visualizer, NowPlaying (transport animado)
-navitui/art.py         widget CoverArt, detección de protocolo (kitty/sixel/halfcell)
-navitui/screens.py     onboarding, SearchModal, InputModal, LyricsModal
-navitui/models.py      dataclasses Song/Album/Artist/Playlist con to_dict/from_dict
+theiaplayer/app.py         layout, workers, playback glue, keybindings
+theiaplayer/api.py         cliente async Subsonic (httpx), token auth, cache de covers
+theiaplayer/player.py      wrapper libmpv + NullPlayer fallback si mpv no está
+theiaplayer/playqueue.py   lógica de cola/shuffle/repeat — sin UI, puro lógica
+theiaplayer/config.py      carga player.toml; build_bindings() genera BINDINGS desde config
+theiaplayer/mpris.py       MPRIS2 D-Bus bidireccional (dbus-python); GLib loop en hilo daemon
+theiaplayer/discord_rpc.py Discord Rich Presence via pypresence; no-op si no está instalado
+theiaplayer/anim.py        primitivas de animación: shimmer, smooth_bar, marquee, viz
+theiaplayer/widgets.py     Logo, Visualizer, NowPlaying (transport animado)
+theiaplayer/art.py         widget CoverArt, detección de protocolo (kitty/sixel/halfcell)
+theiaplayer/screens.py     onboarding, SearchModal, InputModal, LyricsModal
+theiaplayer/models.py      dataclasses Song/Album/Artist/Playlist con to_dict/from_dict
 tools/screenshots.py   generador SVG headless + FakeClient (sin red, sin datos reales)
 tools/demo.py          posa el app real para capturas (main/playlist/search/void)
 ```
@@ -56,7 +56,7 @@ tools/demo.py          posa el app real para capturas (main/playlist/search/void
 | Textual action args | Son literales Python: `enqueue(True)`, nunca `enqueue(true)` |
 | `ricekit` | Micro-paquete de diseño embebido y absorbido localmente en la raíz como `/ricekit/` para simplificar la arquitectura, acelerar el desarrollo y lograr un Monorepo-lite 100% autocontenido y reproducible sin dependencias Git de terceros en el TOML. |
 | `_MprisService` en mpris.py | La clase hereda de `dbus.service.Object` — se define dentro de `_define_service()` para evitar `NameError` cuando `dbus-python` no está instalado |
-| BINDINGS dinámicos | `NaviTuiApp.BINDINGS` se parchea en `__init__` ANTES de `super().__init__()`. Mutación de clase aceptable porque es app single-instance |
+| BINDINGS dinámicos | `TheIAPlayerApp.BINDINGS` se parchea en `__init__` ANTES de `super().__init__()`. Mutación de clase aceptable porque es app single-instance |
 | `_pcfg` en `__init__` | Config cargada antes de `super().__init__()` y guardada como `self._pcfg`. No recargar en `on_mount` |
 | Filtros en `_show_songs` | `_apply_filters()` opera sobre la lista raw. La lista `self._songs` YA está filtrada — no filtrar de nuevo en `_song_row` |
 | Hilos en `dbus-python` | `dbus-python` requiere de forma obligatoria la llamada `dbus.mainloop.glib.threads_init()` en el hilo principal antes de instanciar `dbus.SessionBus()` en hilos secundarios de Python. Omitirlo provoca un deadlock síncrono infinito en C que congela la app en negro al iniciar. |

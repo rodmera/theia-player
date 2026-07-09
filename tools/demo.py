@@ -26,8 +26,8 @@ from screenshots import FakeClient  # noqa: E402  (isolates HOME on import)
 
 os.environ["NAVITUI_ART"] = "auto"  # real kitty graphics, not halfcell
 
-from navitui.app import NaviTuiApp  # noqa: E402
-from navitui.screens import SearchModal  # noqa: E402
+from theiaplayer.app import TheIAPlayerApp  # noqa: E402
+from theiaplayer.screens import SearchModal  # noqa: E402
 
 
 def long_tone(path: Path) -> None:
@@ -51,7 +51,7 @@ def long_tone(path: Path) -> None:
         w.writeframes(bytes(one) * seconds)
 
 
-class DemoApp(NaviTuiApp):
+class DemoApp(TheIAPlayerApp):
     def __init__(self, state: str) -> None:
         client = FakeClient()
         long_tone(client._tone)
