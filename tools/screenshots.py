@@ -246,7 +246,7 @@ async def shoot_main() -> None:
     app = NaviTuiApp(client=FakeClient(), ao="null")
     async with app.run_test(size=(132, 38)) as pilot:
         await pilot.pause(0.8)
-        app.query_one("#pane1-list").focus()
+        app.query_one("#sidebar-list").focus()
         await pilot.pause(0.6)
         await pilot.press("l", "l")
         await pilot.pause(0.6)

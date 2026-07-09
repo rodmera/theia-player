@@ -1,13 +1,15 @@
 <div align="center">
 
-# ♪ NaviTui
+# ♪ TheIA Player
 
 **A fast, animated terminal player for [Navidrome](https://www.navidrome.org/).**
+
+*This is a custom, optimized fork of [NaviTui](https://github.com/Gheat1/NaviTui) for the TheIA ecosystem.*
 
 Cover art rendered right in your terminal, playback through mpv, five themes
 via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 
-<img src="assets/shot-main.png" alt="NaviTui" width="100%">
+<img src="assets/shot-main.png" alt="TheIA Player" width="100%">
 
 </div>
 
@@ -66,12 +68,12 @@ brew install mpv
 then
 
 ```sh
-uv tool install git+https://github.com/Gheat1/NaviTui
-navitui
+uv tool install git+https://github.com/rodmera/theia-player
+theia-player
 ```
 
 First run asks for your server, username and password; the password is never
-stored — only the salted token (chmod 600). Works with Navidrome and any
+stored — only the salted token (chmod 600, saved under `~/.config/theia-player/`). Works with Navidrome and any
 Subsonic-compatible server. Try it against the public demo:
 `https://demo.navidrome.org` / `demo` / `demo`.
 
@@ -100,4 +102,4 @@ Subsonic-compatible server. Try it against the public demo:
 
 ## license
 
-[MIT](LICENSE) — made by [@Gheat1](https://github.com/Gheat1)
+[MIT](LICENSE) — Fork maintained by [@rodmera](https://github.com/rodmera) (rodrigo@theia.cl). Original design and core implementation by [@Gheat1](https://github.com/Gheat1).

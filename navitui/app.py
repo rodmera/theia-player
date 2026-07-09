@@ -99,6 +99,7 @@ HELP_SECTIONS = [
     ),
 ]
 
+APP_STARTED: bool = False
 
 class NaviTuiApp(KitApp):
     TITLE = "theia-player"
@@ -129,6 +130,7 @@ class NaviTuiApp(KitApp):
         Binding("t", "cycle_kit_theme", "theme"),
         Binding("T", "change_theme", show=False),
         Binding("question_mark", "help", "help"),
+        Binding("N", "toggle_notifications", "silent", show=True),
         Binding("q", "quit", "quit"),
     ]
 
@@ -148,6 +150,12 @@ class NaviTuiApp(KitApp):
     #queue-panel { height: 1fr; border: round $kit-border; }
 
     NowPlaying.playing { border: round $kit-border-alt; }
+    #sidebar-list {
+        scrollbar-size: 1 1;
+        scrollbar-color: $kit-border;
+        scrollbar-color-hover: $kit-border-focus;
+        scrollbar-color-active: $kit-border-focus;
+    }
     """
 
     def __init__(self, client: SubsonicClient | None = None, ao: str | None = None) -> None:
@@ -200,6 +208,7 @@ class NaviTuiApp(KitApp):
     def on_mount(self) -> None:
         self._loop = asyncio.get_running_loop()  # for mpv-thread callbacks
         state = self.dirs.load_state()
+        self._notify_on = state.get("desktop_notifications", self._notify_on)
         self.init_kit(theme=state.get("theme"))
 
         for selector, width in (state.get("widths") or {}).items():
@@ -223,11 +232,20 @@ class NaviTuiApp(KitApp):
             ao=self._ao,
             replaygain=pcfg["replaygain"],
             gapless=pcfg["gapless"],
+            replaygain_preamp=float(pcfg.get("replaygain_preamp", 0)),
+            replaygain_fallback=float(pcfg.get("replaygain_fallback", -6)),
         )
         default_vol = pcfg["default_volume"]
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
         self.player.set_volume(saved_vol)
-        self.mpris = mprismod.create()
+        mpris_callbacks = {
+            "play": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
+            "pause": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
+            "play_pause": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
+            "next": lambda: self._loop.call_soon_threadsafe(self.action_next_track),
+            "prev": lambda: self._loop.call_soon_threadsafe(self.action_prev_track),
+        }
+        self.mpris = mprismod.create(mpris_callbacks)
         self.discord = discord_rpc.create(
             pcfg.get("discord_app_id", ""),
             enabled=bool(pcfg.get("discord_rich_presence", False)),
@@ -267,6 +285,10 @@ class NaviTuiApp(KitApp):
                 )
                 return
         self._start()
+        
+        # Indicar al watchdog que la app inicio correctamente
+        global APP_STARTED
+        APP_STARTED = True
 
     def _onboarded(self, config: dict | None) -> None:
         if not config:
@@ -634,7 +656,8 @@ class NaviTuiApp(KitApp):
         self._refresh_song_markers()
         self._persist_queue()
         if self.mpris is not None:
-            self.mpris.set_song(song)
+            art_path = self.client.cached_art(song.cover_art) if (self.client and song.cover_art) else None
+            self.mpris.set_song(song, str(art_path) if art_path else "")
             self.mpris.set_playing(True)
         self._send_notification(song)
         self._update_discord(song)
@@ -715,6 +738,7 @@ class NaviTuiApp(KitApp):
 
     def action_toggle_notifications(self) -> None:
         self._notify_on = not self._notify_on
+        self.dirs.save_state({"desktop_notifications": self._notify_on})
         self.notify(f"notifications {'on' if self._notify_on else 'off'}", timeout=2)
 
     # ── discord ───────────────────────────────────────────────────────
@@ -879,6 +903,8 @@ class NaviTuiApp(KitApp):
             return
         now = self.query_one("#now", NowPlaying)
         now.set_progress(position, duration)
+        if self.mpris is not None:
+            self.mpris.set_position(position)
         if position > 3:
             self._end_failures = 0
         song = self.queue.current
@@ -1143,6 +1169,9 @@ class NaviTuiApp(KitApp):
             panel.placeholder()
             return
         panel.show(path, key)
+        # Actualizar en caliente MPRIS una vez que la carátula se ha descargado en disco
+        if self.mpris is not None and self.queue.current is not None:
+            self.mpris.set_song(self.queue.current, str(path))
 
     # ── search ────────────────────────────────────────────────────────
     def action_search(self) -> None:
@@ -1265,8 +1294,81 @@ class NaviTuiApp(KitApp):
         self.exit()
 
 
+def watchdog_thread() -> None:
+    import time
+    import os
+    import sys
+    import traceback
+    
+    # Esperar 5 segundos
+    time.sleep(5.0)
+    
+    # Si la aplicacion no ha indicado que se inicio correctamente en el hilo de la UI,
+    # recopilamos las trazas de todos los hilos activos del proceso, las guardamos en /tmp/theia-player.log
+    # y abortamos el proceso inmediatamente para liberar la terminal del usuario.
+    global APP_STARTED
+    if not APP_STARTED:
+        log_path = "/tmp/theia-player.log"
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write("\n🚨 WATCHDOG TIMEOUT: El reproductor se quedo congelado en el arranque (>5.0s).\n")
+                f.write("=== COLA DE LLAMADAS DE HILOS (STACK TRACES) ===\n")
+                for thread_id, frame in sys._current_frames().items():
+                    f.write(f"\n--- Thread {thread_id} ---\n")
+                    traceback.print_stack(frame, file=f)
+        except Exception:
+            pass
+        os._exit(1)
+
+
 def main() -> None:
-    NaviTuiApp().run()
+    import os
+    import sys
+    import threading
+    import traceback
+    
+    # Silenciar warnings menores de PipeWire
+    os.environ["PIPEWIRE_DEBUG"] = "0"
+    
+    # Si corre en Ghostty o Kitty, forzar de forma nativa el Kitty Graphics Protocol (tgp) para portadas de alta resolucion real.
+    # Nota de sistemas: El uso de enlaces simbolicos directos de TTY (sin wrappers de Bash intermedias) es mandatorio
+    # para que la negociacion de capacidades ANSI de textual-image fluya de forma asincrona y estable en caliente.
+    term = os.environ.get("TERM_PROGRAM", "").lower()
+    is_kitty_compatible = (term in ("ghostty", "kitty") or os.environ.get("TERM") == "xterm-kitty")
+    if is_kitty_compatible and "NAVITUI_ART" not in os.environ:
+        os.environ["NAVITUI_ART"] = "tgp"
+        
+    log_path = "/tmp/theia-player.log"
+    try:
+        # Intentar limpiar el archivo de log viejo para partir de cero
+        if os.path.exists(log_path):
+            os.remove(log_path)
+    except Exception:
+        pass
+        
+    try:
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            log_file.write("=== INICIANDO THEIA-PLAYER INTERACTIVO ===\n")
+            
+        # Lanzar el hilo de watchdog daemonizado de fondo para liberar de inmediato la terminal ante cualquier bloqueo
+        t = threading.Thread(target=watchdog_thread, daemon=True)
+        t.start()
+        
+        # Ejecutar la aplicacion
+        NaviTuiApp().run()
+        
+    except Exception as e:
+        # CAPTURAR CUALQUIER EXCEPCIÓN DEL ARRANQUE Y GUARDARLA AL LOG
+        try:
+            with open(log_path, "a", encoding="utf-8") as log_file:
+                log_file.write(f"\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
+                traceback.print_exc(file=log_file)
+        except Exception:
+            pass
+        # Tambien imprimirlo a stderr real por si la Alternate Screen se cierra para que el usuario tenga el traceback en consola
+        sys.stderr.write(f"\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -8,8 +8,8 @@ If dbus-python isn't installed the module still imports cleanly — `create()`
 returns a no-op MprisController and the caller treats MPRIS as optional.
 
 Exposes: PlaybackStatus, Metadata (title/artist/album/art), CanPlay/Pause/etc.
-Does NOT implement transport control from external clients (play/pause via media
-key widget) — that requires an event loop bridge; deferred for a future HU.
+Implements: Full transport control from external clients (play, pause, play-pause, next, previous)
+via an asynchronous threadsafe event-loop bridge to the main Textual app.
 """
 
 from __future__ import annotations
@@ -21,8 +21,12 @@ MPRIS_AVAILABLE = True
 try:
     import dbus
     import dbus.service
+    import dbus.mainloop.glib
     from dbus.mainloop.glib import DBusGMainLoop
     from gi.repository import GLib
+    
+    # Habilitar soporte multihilo nativo en D-Bus/GLib de forma obligatoria
+    dbus.mainloop.glib.threads_init()
 except Exception:
     MPRIS_AVAILABLE = False
 
@@ -35,7 +39,7 @@ PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_IFACE = "org.mpris.MediaPlayer2"
 
 
-def _define_service():
+def _define_service(callbacks: dict | None = None):
     """Define _MprisService only when dbus is available — avoids NameError at class parse time."""
 
     class _MprisService(dbus.service.Object):  # type: ignore[misc]
@@ -43,7 +47,9 @@ def _define_service():
             bus_name = dbus.service.BusName(BUS_NAME, bus=bus)
             super().__init__(bus_name, OBJECT_PATH)
             self._status = "Stopped"
+            self._position = 0
             self._meta: dict = self._empty_meta()
+            self._callbacks = callbacks or {}
 
         # ── root interface ────────────────────────────────────────────────
         @dbus.service.method(ROOT_IFACE)
@@ -62,10 +68,11 @@ def _define_service():
         def GetAll(self, iface: str) -> dict:
             if iface == ROOT_IFACE:
                 return {
-                    "CanQuit": dbus.Boolean(False),
+                    "CanQuit": dbus.Boolean(True),
                     "CanRaise": dbus.Boolean(False),
                     "HasTrackList": dbus.Boolean(False),
-                    "Identity": dbus.String("theia-player"),
+                    "Identity": dbus.String("TheIA Player"),
+                    "DesktopEntry": dbus.String("theia-player"),
                     "SupportedUriSchemes": dbus.Array([], signature="s"),
                     "SupportedMimeTypes": dbus.Array([], signature="s"),
                 }
@@ -77,7 +84,7 @@ def _define_service():
                     "Shuffle": dbus.Boolean(False),
                     "Metadata": dbus.Dictionary(self._meta, signature="sv"),
                     "Volume": dbus.Double(1.0),
-                    "Position": dbus.Int64(0),
+                    "Position": dbus.Int64(self._position),
                     "MinimumRate": dbus.Double(1.0),
                     "MaximumRate": dbus.Double(1.0),
                     "CanGoNext": dbus.Boolean(True),
@@ -85,7 +92,7 @@ def _define_service():
                     "CanPlay": dbus.Boolean(True),
                     "CanPause": dbus.Boolean(True),
                     "CanSeek": dbus.Boolean(False),
-                    "CanControl": dbus.Boolean(False),
+                    "CanControl": dbus.Boolean(True),
                 }
             return {}
 
@@ -97,30 +104,36 @@ def _define_service():
         def PropertiesChanged(self, iface: str, changed: dict, invalidated: list) -> None:
             pass
 
-        # ── player interface (no-op stubs) ────────────────────────────────
+        # ── player interface (callbacks implemented) ──────────────────────
         @dbus.service.method(PLAYER_IFACE)
         def Play(self) -> None:
-            pass
+            if "play" in self._callbacks:
+                self._callbacks["play"]()
 
         @dbus.service.method(PLAYER_IFACE)
         def Pause(self) -> None:
-            pass
+            if "pause" in self._callbacks:
+                self._callbacks["pause"]()
 
         @dbus.service.method(PLAYER_IFACE)
         def PlayPause(self) -> None:
-            pass
+            if "play_pause" in self._callbacks:
+                self._callbacks["play_pause"]()
 
         @dbus.service.method(PLAYER_IFACE)
         def Stop(self) -> None:
-            pass
+            if "stop" in self._callbacks:
+                self._callbacks["stop"]()
 
         @dbus.service.method(PLAYER_IFACE)
         def Next(self) -> None:
-            pass
+            if "next" in self._callbacks:
+                self._callbacks["next"]()
 
         @dbus.service.method(PLAYER_IFACE)
         def Previous(self) -> None:
-            pass
+            if "prev" in self._callbacks:
+                self._callbacks["prev"]()
 
         # ── state updates (called via GLib.idle_add) ──────────────────────
         def _empty_meta(self) -> dict:
@@ -135,6 +148,10 @@ def _define_service():
             self._status = status
             self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
 
+        def _set_position(self, microsec: int) -> None:
+            self._position = microsec
+            self.PropertiesChanged(PLAYER_IFACE, {"Position": dbus.Int64(microsec)}, [])
+
         def _set_song(self, song: "Song | None", art_url: str = "") -> None:
             if song is None:
                 self._meta = self._empty_meta()
@@ -144,7 +161,9 @@ def _define_service():
                     "xesam:title": dbus.String(song.title),
                     "xesam:artist": dbus.Array([song.artist], signature="s"),
                     "xesam:album": dbus.String(song.album),
+                    "xesam:albumArtist": dbus.Array([song.artist], signature="s"),
                     "mpris:length": dbus.Int64(song.duration * 1_000_000),
+                    "xesam:userRating": dbus.Double(float(song.rating or 0) / 5.0),
                 }
                 if art_url:
                     self._meta["mpris:artUrl"] = dbus.String(art_url)
@@ -160,21 +179,31 @@ class MprisController:
     they silently no-op when MPRIS_AVAILABLE is False.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, callbacks: dict | None = None) -> None:
         self._svc = None
         self._loop = None
         self._thread: threading.Thread | None = None
+        self._callbacks = callbacks or {}
 
     def start(self) -> None:
         if not MPRIS_AVAILABLE:
             return
-        DBusGMainLoop(set_as_default=True)
-        bus = dbus.SessionBus()
-        MprisService = _define_service()
-        self._svc = MprisService(bus)
-        self._loop = GLib.MainLoop()
-        self._thread = threading.Thread(target=self._loop.run, daemon=True)
+        # Lanzar la inicialización y el loop de D-Bus de forma asíncrona en un hilo de fondo
+        # Esto independiza por completo el arranque del hilo principal de Textual, eliminando todo riesgo de congelamientos.
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+
+    def _run_loop(self) -> None:
+        try:
+            DBusGMainLoop(set_as_default=True)
+            bus = dbus.SessionBus()
+            MprisService = _define_service(self._callbacks)
+            self._svc = MprisService(bus)
+            self._loop = GLib.MainLoop()
+            self._loop.run()
+        except Exception:
+            self._svc = None
+            self._loop = None
 
     def stop(self) -> None:
         if self._loop is not None:
@@ -196,9 +225,15 @@ class MprisController:
             return
         GLib.idle_add(self._svc._set_status, "Stopped")
 
+    def set_position(self, seconds: float) -> None:
+        if self._svc is None:
+            return
+        microsec = int(seconds * 1_000_000)
+        GLib.idle_add(self._svc._set_position, microsec)
 
-def create() -> MprisController:
-    ctrl = MprisController()
+
+def create(callbacks: dict | None = None) -> MprisController:
+    ctrl = MprisController(callbacks)
     if MPRIS_AVAILABLE:
         try:
             ctrl.start()

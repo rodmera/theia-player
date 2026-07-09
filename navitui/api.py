@@ -226,11 +226,11 @@ class SubsonicClient:
     # any panel size; halfcell terminals are bounded by cells either way
     def cached_art(self, cover_id: str, size: int = 1200) -> Path | None:
         path = self._art_dir / f"{cover_id.replace('/', '_')}-{size}"
-        return path if path.exists() else None
+        return path if path.exists() and path.stat().st_size > 0 else None
 
     async def cover_art(self, cover_id: str, size: int = 1200) -> Path:
         path = self._art_dir / f"{cover_id.replace('/', '_')}-{size}"
-        if path.exists():
+        if path.exists() and path.stat().st_size > 0:
             return path
         resp = await self._http.get(
             f"{self.server}/rest/getCoverArt",
@@ -241,6 +241,8 @@ class SubsonicClient:
             body = resp.json().get("subsonic-response", {})
             err = body.get("error", {})
             raise SubsonicError(err.get("message", "no cover art"))
+        if not resp.content:
+            raise SubsonicError("empty cover art response")
         self._art_dir.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".part")
         tmp.write_bytes(resp.content)

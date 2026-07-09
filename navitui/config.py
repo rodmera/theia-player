@@ -74,6 +74,8 @@ DEFAULTS: dict = {
     "replaygain":           "album",   # track | album | no
     "gapless":              "yes",     # yes | no | weak
     "default_volume":       80,        # 0-130, -1 = restore last
+    "replaygain_preamp":    0,         # preamp gain in dB (default: 0)
+    "replaygain_fallback":  -6,        # fallback gain in dB if no metadata exists (default: -6)
     # integrations
     "desktop_notifications": True,
     "discord_rich_presence": False,
@@ -122,7 +124,9 @@ def write_default(config_dir: Path) -> None:
         "# ── Playback ─────────────────────────────────────────────────────────\n"
         '# replaygain = "album"   # track | album | no\n'
         '# gapless    = "yes"     # yes | no | weak\n'
-        "# default_volume = 80    # 0-130, -1 = restore last session\n\n"
+        "# default_volume = 80    # 0-130, -1 = restore last session\n"
+        "# replaygain_preamp = 0  # pre-amp gain in dB, positive or negative (default: 0)\n"
+        "# replaygain_fallback = -6 # fallback gain in dB if no metadata exists (default: -6)\n\n"
 
         "# ── Integrations ─────────────────────────────────────────────────────\n"
         "# desktop_notifications = true\n"
@@ -222,7 +226,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["go_to_artist"],         "go_to_artist",         show=False),
         Binding(kb["toggle_selection"],     "toggle_selection",     show=False),
         Binding(kb["playlist_add"],         "playlist_add",         show=False),
-        Binding(kb["notifications_toggle"], "toggle_notifications", show=False),
+        Binding(kb["notifications_toggle"], "toggle_notifications", "silent", show=True),
         Binding(kb["panel_prev"],           "focus_panel(-1)",      show=False),
         Binding(kb["panel_next"],           "focus_panel(1)",       show=False),
         Binding(kb["refresh"],              "refresh",              show=False),

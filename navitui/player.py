@@ -46,6 +46,8 @@ class Player:
         ao: str | None = None,
         replaygain: str = "album",
         gapless: str = "yes",
+        replaygain_preamp: float = 0.0,
+        replaygain_fallback: float = -6.0,
     ) -> None:
         self._on_position = on_position
         self._on_track_end = on_track_end
@@ -62,6 +64,8 @@ class Player:
             audio_client_name="theia-player",
             replaygain=replaygain,
             gapless_audio=gapless,
+            replaygain_preamp=replaygain_preamp,
+            replaygain_fallback=replaygain_fallback,
         )
         if ao:
             opts["ao"] = ao
@@ -223,7 +227,17 @@ def create_player(
     ao: str | None = None,
     replaygain: str = "album",
     gapless: str = "yes",
+    replaygain_preamp: float = 0.0,
+    replaygain_fallback: float = -6.0,
 ):
     if not MPV_AVAILABLE:
         return NullPlayer()
-    return Player(on_position, on_track_end, ao=ao, replaygain=replaygain, gapless=gapless)
+    return Player(
+        on_position,
+        on_track_end,
+        ao=ao,
+        replaygain=replaygain,
+        gapless=gapless,
+        replaygain_preamp=replaygain_preamp,
+        replaygain_fallback=replaygain_fallback,
+    )

@@ -172,7 +172,11 @@ class NowPlaying(Static):
     def _line_bottom(self, width: int) -> Text:
         elapsed = anim.fmt_time(self.position)
         total = anim.fmt_time(self.duration or (self.song.duration if self.song else 0))
-        times = f" {elapsed} / {total} "
+
+        # Aprovechar el espacio muerto de la sangría bajo las barras de intensidad para colocar
+        # el tiempo transcurrido actual en un bloque de ancho exacto de 7 caracteres.
+        left_time = f"{elapsed:>5s}  "
+        right_time = f"  {total} "
 
         # right side: volume + modes
         right = Text("  ")
@@ -201,17 +205,22 @@ class NowPlaying(Static):
             right.append("¹", style=palette.peach)
         rep_end = right.cell_len
 
-        bar_width = max(4, width - len(times) - right.cell_len)
+        # Conditionally show the [Silent] indicator if notifications are muted
+        if not getattr(self.app, "_notify_on", True):
+            right.append("  [Silent]", style="bold " + palette.peach)
+
+        bar_width = max(4, width - len(left_time) - len(right_time) - right.cell_len)
         frac = self.position / self.duration if self.duration > 0 else 0.0
         pulse = (math.sin(self._tick * 0.55) + 1) / 2 if self.playing else 0.0
         line = Text()
+        line.append(left_time, style=palette.dim)
         line.append_text(anim.smooth_bar(frac, bar_width, head_pulse=pulse))
-        line.append(times, style=palette.dim)
+        line.append(right_time, style=palette.dim)
         base = line.cell_len
         line.append_text(right)
 
         # remember hit-boxes for the mouse (content coordinates, line y=1)
-        self._bar_span = (0, bar_width)
+        self._bar_span = (len(left_time), len(left_time) + bar_width)
         self._gauge_span = (base + gauge_start, base + gauge_end)
         self._mode_spans = {
             "shuffle": (base + shuf_start, base + shuf_end),

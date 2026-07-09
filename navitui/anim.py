@@ -72,26 +72,30 @@ _EIGHTHS = "▏▎▍▌▋▊▉█"
 
 
 def smooth_bar(fraction: float, width: int, head_pulse: float = 0.0) -> Text:
-    """A progress bar with 1/8-cell resolution and a gently pulsing head.
+    """A minimal, elegant progress slider.
 
-    `head_pulse` in [0,1] brightens the leading edge — feed it a sine of
-    the tick counter and the bar breathes while the track plays.
+    Replaces blocky full-cell blocks with a slim horizontal line and a circular
+    slider head, delivering a premium, minimalist web-like aesthetic.
     """
     fraction = max(0.0, min(1.0, fraction))
-    eighths = round(fraction * width * 8)
-    full, rem = divmod(eighths, 8)
+    filled_width = round(fraction * width)
+    
     fill_color = blend(palette.blue, palette.lav, 0.3)
     head_color = blend(fill_color, palette.text, 0.55 * head_pulse)
+    
     bar = Text()
-    if full > 0:
-        if full > 1:
-            bar.append("█" * (full - 1), style=fill_color)
-        bar.append("█", style=head_color if rem == 0 else fill_color)
-    if rem and full < width:
-        bar.append(_EIGHTHS[rem - 1], style=head_color)
-    used = full + (1 if rem else 0)
-    if used < width:
-        bar.append("╌" * (width - used), style=palette.vfaint)
+    if filled_width > 0:
+        if filled_width > 1:
+            # Parte llena de la línea (línea horizontal de grosor medio)
+            bar.append("━" * (filled_width - 1), style=fill_color)
+        # Cabeza deslizante en forma de círculo nítido
+        bar.append("●", style=head_color)
+        
+    empty_width = width - filled_width
+    if empty_width > 0:
+        # Parte vacía de la línea (línea horizontal delgada simple)
+        bar.append("─" * empty_width, style=palette.vfaint)
+        
     return bar
 
 
