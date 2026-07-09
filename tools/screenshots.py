@@ -118,7 +118,7 @@ class FakeClient:
     """The same surface as SubsonicClient, no network anywhere."""
 
     server = "https://demo.music.example"
-    username = "gheat"
+    username = "rodmera"
 
     def __init__(self) -> None:
         self._art_dir = FAKE_HOME / "art"
@@ -175,8 +175,8 @@ class FakeClient:
 
     async def get_playlists(self):
         return [
-            Playlist(id="pl1", name="late night coding", song_count=14, duration=3300, owner="gheat"),
-            Playlist(id="pl2", name="gym (do not judge)", song_count=9, duration=2100, owner="gheat"),
+            Playlist(id="pl1", name="late night coding", song_count=14, duration=3300, owner="rodmera"),
+            Playlist(id="pl2", name="gym (do not judge)", song_count=9, duration=2100, owner="rodmera"),
         ]
 
     async def get_playlist_songs(self, playlist_id):
@@ -279,7 +279,7 @@ async def shoot_onboarding() -> None:
         await pilot.pause(0.6)
         assert isinstance(app.screen, OnboardingScreen)
         app.screen.query_one("#in-server").value = "https://music.example.com"
-        app.screen.query_one("#in-user").value = "gheat"
+        app.screen.query_one("#in-user").value = "rodmera"
         await pilot.pause(0.4)
         app.save_screenshot(str(ASSETS / "onboarding.svg"))
         app.exit()

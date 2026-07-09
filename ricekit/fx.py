@@ -15,7 +15,7 @@ FX_REST_TICKS = 26  # pause between wave sweeps (~3s)
 
 
 def wave_markup(s: str, pos: int, base: str, hi: str) -> str:
-    """One traveling letter, bolded + capitalized: gheatmc -> Gheatmc -> gHeatmc.
+    """One traveling letter, bolded + capitalized: theiaplayer -> Theiaplayer -> tHeiaplayer.
 
     `pos` is the index of the highlighted letter (-1 or out of range = no
     highlight). Advance pos on a timer; after the sweep, rest FX_REST_TICKS.
