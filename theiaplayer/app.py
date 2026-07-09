@@ -28,7 +28,12 @@ from ricekit.modals import HelpModal, PickerModal
 from ricekit.storage import AppDirs
 from ricekit.widgets import NavList, Splitter
 
-from theiaplayer import anim, config as playerconfig, discord_rpc, mpris as mprismod, player as playermod
+import sys
+from theiaplayer import anim, config as playerconfig, discord_rpc, player as playermod
+if sys.platform == "darwin":
+    from theiaplayer import nowplaying_mac as mprismod
+else:
+    from theiaplayer import mpris as mprismod
 from theiaplayer.api import SubsonicClient, SubsonicError
 from theiaplayer.art import CoverArt
 from theiaplayer.models import Album, Artist, Playlist, Song

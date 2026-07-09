@@ -33,6 +33,7 @@ theiaplayer/mpris.py       MPRIS2 D-Bus bidireccional (dbus-python); GLib loop e
 theiaplayer/discord_rpc.py Discord Rich Presence via pypresence; no-op si no está instalado
 theiaplayer/anim.py        primitivas de animación: shimmer, smooth_bar, marquee, viz
 theiaplayer/widgets.py     Logo, Visualizer, NowPlaying (transport animado)
+theiaplayer/nowplaying_mac.py macOS NowPlaying y RemoteCommandCenter nativos (PyObjC)
 theiaplayer/art.py         widget CoverArt, detección de protocolo (kitty/sixel/halfcell)
 theiaplayer/screens.py     onboarding, SearchModal, InputModal, LyricsModal
 theiaplayer/models.py      dataclasses Song/Album/Artist/Playlist con to_dict/from_dict
@@ -90,15 +91,19 @@ discord_app_id         = ""    # discord.com/developers/applications
 ## Dependencias opcionales
 
 ```bash
-# MPRIS2 (control desde widgets del DE, playerctl, etc.)
+# MPRIS2 (control de escritorio en Linux/FreeBSD)
 pip install dbus-python
 # o: pip install ".[mpris]"
+
+# macOS Media Controls (teclas de Apple, Centro de Control de macOS)
+pip install pyobjc-framework-MediaPlayer
+# o: pip install ".[mac]"
 
 # Discord Rich Presence
 pip install pypresence
 # o: pip install ".[discord]"
 
-# Todo junto
+# Todo junto (instala automáticamente pyobjc si estás en Mac, o dbus si estás en Linux)
 pip install ".[full]"
 ```
 
@@ -134,7 +139,8 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | ReplayGain album/track/no | `player.py`, `config.py` | Configurable en player.toml |
 | Preamp & RG Ganancia | `player.py`, `config.py`, `app.py` | Configurable nativamente en player.toml (`replaygain_preamp` / `replaygain_fallback`) |
 | Gapless playback | `player.py`, `config.py` | Configurable en player.toml |
-| MPRIS2 D-Bus | `mpris.py` | Opcional (dbus-python). Soporta control bidireccional de reproducción completo (Play, Pause, PlayPause, Next, Previous) desde el entorno de escritorio y teclas multimedia del teclado de forma segura para hilos. |
+| MPRIS2 D-Bus (Linux) | `mpris.py` | Opcional (dbus-python). Soporta control bidireccional de reproducción completo (Play, Pause, PlayPause, Next, Previous) desde el entorno de escritorio y teclas multimedia del teclado de forma segura para hilos. |
+| NowPlaying (macOS Cocoa) | `nowplaying_mac.py` | Opcional (`pyobjc-framework-MediaPlayer`). Soporta integración nativa y de hilos asíncrona de 1:1 con las teclas físicas de Apple (F7/F8/F9), carátulas dinámicas desde disco y el Centro de Sonido de tu Mac. |
 | Desktop notifications | `app.py`, `config.py`, `widgets.py` | `notify-send` con cover art; toggle `N` visible en footer. Soportado el modo silencioso, mostrando un indicador estático `[Silent]` a color en la barra de reproducción si las notificaciones de escritorio se desactivan. |
 | Discord Rich Presence | `discord_rpc.py` | Opcional: requiere `pypresence` + app_id |
 | Keybinds configurables | `config.py`, `app.py` | `[keybinds]` en player.toml — 34 acciones |
