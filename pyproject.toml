@@ -3,12 +3,12 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "navitui"
+name = "theia-player"
 version = "0.3.0"
 description = "A fast, animated TUI player for Navidrome — cover art in the terminal, playback via mpv, themes via ricekit"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "Gheat" }]
+authors = [{ name = "Rodrigo Mera", email = "rodrigo@theia.cl" }]
 requires-python = ">=3.11"
 dependencies = [
     "textual>=1.0",
@@ -29,12 +29,12 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Gheat1/NaviTui"
-Repository = "https://github.com/Gheat1/NaviTui"
-Issues = "https://github.com/Gheat1/NaviTui/issues"
+Homepage = "https://github.com/rodmera/theia-player"
+Repository = "https://github.com/rodmera/theia-player"
+Issues = "https://github.com/rodmera/theia-player/issues"
 
 [project.scripts]
-navitui = "navitui:main"
+theia-player = "navitui:main"
 
 [tool.setuptools]
 packages = ["navitui"]

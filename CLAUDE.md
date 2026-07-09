@@ -1,69 +1,86 @@
-# CLAUDE.md
+# CLAUDE.md — theia-player
 
-Guidance for AI agents (and curious humans) working in this repo.
+Fork de [NaviTui](https://github.com/Gheat1/NaviTui). TUI music player para Navidrome/Subsonic, escrito en Python con Textual + libmpv.
 
-## what this is
+**Repo:** `github.com/rodmera/theia-player`
+**Upstream:** `github.com/Gheat1/NaviTui` (remote `upstream`) — hacer `git fetch upstream` para traer cambios futuros
 
-`navitui` is a Python TUI music player for Navidrome/Subsonic servers, built
-on [Textual](https://github.com/Textualize/textual) and
-[ricekit](https://github.com/Gheat1/ricekit) (the design system — read its
-`DESIGN.md` before changing any UI). Playback is libmpv via `python-mpv`;
-cover art is `textual-image` (kitty/sixel/halfcell/unicode).
+## Reglas de código
 
-Design priorities, in order:
+- **`python3` siempre**, nunca `python`
+- **Leer antes de editar** — el código upstream es limpio; no romper patrones existentes
+- **Sin features no pedidas** — bug fix = bug fix
+- **Sin Co-Authored-By ni atribución a IA** en commits
 
-1. **fast** — cache-first everywhere; the UI never blocks on the network
-2. **alive** — one 8fps heartbeat drives every animation; each tick repaints
-   only a few cells; never add a timer per widget
-3. **pretty** — ricekit themes/palette at render time, nerd-font icons as
-   `\uXXXX` escapes only (raw PUA glyphs do not survive patch tooling)
-
-## hard rules
-
-- **No AI attribution in commits.** No `Co-Authored-By`, no "generated with"
-  trailers. Commit as the repo owner.
-- **README screenshots come from the tools, never a real library.**
-  `tools/shots.sh` captures the real app in kitty on an empty Hyprland
-  workspace (true pixel cover art) via `tools/demo.py`'s posed states;
-  `tools/screenshots.py` is the headless SVG fallback. Both use the mocked
-  client and generated art — zero network, zero real data.
-- **mpv callbacks arrive on mpv's thread.** Anything touching the UI must be
-  scheduled with `loop.call_soon_threadsafe` — never a blocking call (see
-  `_mpv_position`/`_mpv_track_end` and the sharp-edges table below).
-- **Every kit theme must keep working** — including `system` (ANSI): color
-  blending degrades to flat styles via `anim.blend`/`can_blend`; never bake
-  palette values in at import time.
-
-## file map
+## Arquitectura
 
 ```
-navitui/app.py        the app: sidebar+tracks layout, workers, playback glue, actions
-navitui/api.py        async Subsonic client (httpx), token auth, art cache
-navitui/player.py     libmpv wrapper + NullPlayer fallback when mpv is absent
-navitui/playqueue.py  queue/shuffle/repeat logic (no UI in here)
-navitui/anim.py       animation primitives: shimmer, smooth_bar, marquee, viz
-navitui/widgets.py    Logo, Visualizer, NowPlaying (the animated transport)
-navitui/art.py        CoverArt widget, protocol picking, NAVITUI_ART override
-navitui/screens.py    onboarding, search modal, InputModal (playlist names)
-navitui/models.py     dataclasses that round-trip through the JSON cache
-tools/screenshots.py  headless SVG screenshot generator + FakeClient
-tools/demo.py         poses the real app in a real terminal (states: main/playlist/search/void)
-tools/shots.sh        captures those states with grim → assets/shot-*.png
+navitui/app.py        layout, workers, playback glue, keybindings
+navitui/api.py        cliente async Subsonic (httpx), token auth, cache de covers
+navitui/player.py     wrapper libmpv + NullPlayer fallback si mpv no está
+navitui/playqueue.py  lógica de cola/shuffle/repeat — sin UI, puro lógica
+navitui/anim.py       primitivas de animación: shimmer, smooth_bar, marquee, viz
+navitui/widgets.py    Logo, Visualizer, NowPlaying (transport animado)
+navitui/art.py        widget CoverArt, detección de protocolo (kitty/sixel/halfcell)
+navitui/screens.py    onboarding, modal de búsqueda, InputModal (nombres playlist)
+navitui/models.py     dataclasses Song/Album/Artist/Playlist con to_dict/from_dict
+tools/screenshots.py  generador SVG headless + FakeClient (sin red, sin datos reales)
+tools/demo.py         posa el app real para capturas (main/playlist/search/void)
 ```
 
-## sharp edges (beyond ricekit's DESIGN.md table)
+## Prioridades de diseño (del upstream, mantener)
 
-| gotcha | rule |
-| --- | --- |
-| `Widget.visual_style` (textual 8) | caches the blended text background while an ancestor's opacity is still animating — `pop_in` on a background-bearing box leaves smudged text backgrounds. `screens.settle_pop_in` busts the cache after the fade. |
-| mpv callbacks | arrive on mpv's thread and must never block: `call_from_thread` deadlocks against `terminate()` on quit (UI joins the event thread while the event thread waits for the UI). Use `loop.call_soon_threadsafe`, throttle `time-pos` to ~0.25s steps, silence observers with `_closing` before `terminate()` |
-| textual action args | are Python literals: `enqueue(True)`, never `enqueue(true)` |
-| two `run_test` sessions in one process | can wedge with a constantly-animating app — `tools/screenshots.py` isolates each phase in a subprocess |
+1. **fast** — cache-first; la UI nunca bloquea en red
+2. **alive** — un heartbeat a 8fps maneja TODA la animación; nunca agregar timer por widget
+3. **pretty** — temas ricekit en render time; iconos nerd-font como `\uXXXX`, nunca glifos raw PUA
 
-## testing
+## Bordes afilados
 
-Headless, against the mocked client from `tools/screenshots.py`, or live
-against the public demo server (`https://demo.navidrome.org`, demo/demo —
-read-only tests only). Isolate state with `HOME=$(mktemp -d)` and pass
-`ao="null"` to `NaviTuiApp` so mpv needs no audio device. Screenshot SVGs
-via `app.save_screenshot()` for visual review.
+| Gotcha | Regla |
+|---|---|
+| Callbacks de mpv | Llegan en el thread de mpv — nunca bloquear. Usar `loop.call_soon_threadsafe` (no `call_from_thread` — deadlock contra `terminate()`). Ver `_mpv_position`/`_mpv_track_end` en app.py |
+| `_want_playing` flag | Player.py usa este flag para ignorar eventos `end-file` de tracks que se reemplazaron — no sacarlo |
+| Temas ANSI (`system`) | `anim.blend`/`can_blend()` degrada a estilos planos cuando no hay RGB — nunca hardcodear colores de palette al importar |
+| Textual action args | Son literales Python: `enqueue(True)`, nunca `enqueue(true)` |
+| `ricekit` | Dependencia externa de `Gheat1/ricekit`. Si el upstream cambia la API, puede romper. Considerar fork si hay cambios disruptivos |
+
+## Dependencias a instalar
+
+```bash
+# Arch (sistema de Rodrigo)
+sudo pacman -S mpv
+
+# Python
+uv tool install -e /home/rodmera/projects/theia-player
+# o en desarrollo:
+cd /home/rodmera/projects/theia-player
+pip install -e .
+```
+
+## Correr en desarrollo
+
+```bash
+cd /home/rodmera/projects/theia-player
+python3 -m navitui
+# o con audio null para tests:
+# NAVITUI_ART=off python3 -m navitui  (sin cover art)
+```
+
+Conecta a Navidrome local: `localhost:4533` / usuario `rodmera`.
+
+## Features pendientes vs SubTUI (backlog)
+
+| Feature | Estado | Notas |
+|---|---|---|
+| **ReplayGain por álbum** | pendiente | Agregar `replaygain="album"` a opts mpv en `player.py:64` |
+| **Gapless playback** | pendiente | Agregar `gapless_audio=True` a opts mpv en `player.py:64` |
+| **MPRIS** | pendiente | `dbus-python` + mpris2; permite control desde widgets del DE |
+
+## Actualizar desde upstream
+
+```bash
+git fetch upstream
+git merge upstream/main
+# resolver conflictos si los hay, luego:
+git push origin main
+```
