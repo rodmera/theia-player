@@ -25,7 +25,6 @@ dependencies = [
     "python-mpv>=1.0",
     "pillow>=10",
     "textual-image>=0.8",
-    "ricekit @ git+https://github.com/rodmera/ricekit",
 ]
 
 [project.optional-dependencies]
@@ -42,4 +41,4 @@ Issues = "https://github.com/rodmera/theia-player/issues"
 theia-player = "navitui:main"
 
 [tool.setuptools]
-packages = ["navitui"]
+packages = ["navitui", "ricekit"]

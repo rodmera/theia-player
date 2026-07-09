@@ -54,7 +54,7 @@ tools/demo.py          posa el app real para capturas (main/playlist/search/void
 | `_want_playing` flag | Player.py usa este flag para ignorar eventos `end-file` de tracks que se reemplazaron — no sacarlo |
 | Temas ANSI (`system`) | `anim.blend`/`can_blend()` degrada a estilos planos cuando no hay RGB — nunca hardcodear colores de palette al importar |
 | Textual action args | Son literales Python: `enqueue(True)`, nunca `enqueue(true)` |
-| `ricekit` | Dependencia forqueada a `rodmera/ricekit` en `pyproject.toml` para garantizar reproducibilidad absoluta y blindaje ante cambios externos. |
+| `ricekit` | Micro-paquete de diseño embebido y absorbido localmente en la raíz como `/ricekit/` para simplificar la arquitectura, acelerar el desarrollo y lograr un Monorepo-lite 100% autocontenido y reproducible sin dependencias Git de terceros en el TOML. |
 | `_MprisService` en mpris.py | La clase hereda de `dbus.service.Object` — se define dentro de `_define_service()` para evitar `NameError` cuando `dbus-python` no está instalado |
 | BINDINGS dinámicos | `NaviTuiApp.BINDINGS` se parchea en `__init__` ANTES de `super().__init__()`. Mutación de clase aceptable porque es app single-instance |
 | `_pcfg` en `__init__` | Config cargada antes de `super().__init__()` y guardada como `self._pcfg`. No recargar en `on_mount` |
