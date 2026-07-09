@@ -56,7 +56,7 @@ class Logo(Static):
     def logo_text(self) -> Text:
         t = Text()
         t.append(anim.note(int(self._phase)) + " ", style=palette.mauve)
-        t.append_text(anim.shimmer("NaviTui", self._phase, palette.mauve, palette.text))
+        t.append_text(anim.shimmer("theia-player", self._phase, palette.mauve, palette.text))
         return t
 
 

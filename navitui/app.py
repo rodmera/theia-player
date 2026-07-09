@@ -27,7 +27,7 @@ from ricekit.modals import HelpModal, PickerModal
 from ricekit.storage import AppDirs
 from ricekit.widgets import NavList, Splitter
 
-from navitui import anim, player as playermod
+from navitui import anim, config as playerconfig, mpris as mprismod, player as playermod
 from navitui.api import SubsonicClient, SubsonicError
 from navitui.art import CoverArt
 from navitui.models import Album, Artist, Playlist, Song
@@ -93,7 +93,7 @@ HELP_SECTIONS = [
 
 
 class NaviTuiApp(KitApp):
-    TITLE = "NaviTui"
+    TITLE = "theia-player"
 
     BINDINGS = [
         Binding("space", "play_pause", "play/pause"),
@@ -144,11 +144,12 @@ class NaviTuiApp(KitApp):
 
     def __init__(self, client: SubsonicClient | None = None, ao: str | None = None) -> None:
         super().__init__()
-        self.dirs = AppDirs("navitui")
+        self.dirs = AppDirs("theia-player")
         self.client: SubsonicClient | None = client
         self._ao = ao
         self.queue = PlayQueue()
         self.player = None
+        self.mpris: mprismod.MprisController | None = None
         self.view: str = "all-songs"  # sidebar view id (or "pl:<id>", or "artist:<id>")
         self._songs: list[Song] = []  # what the tracks pane shows
         self._playlists: list[Playlist] = []
@@ -198,8 +199,19 @@ class NaviTuiApp(KitApp):
         if saved_view in VIEW_LABELS or saved_view.startswith("pl:"):
             self.view = saved_view
 
-        self.player = playermod.create_player(self._mpv_position, self._mpv_track_end, ao=self._ao)
-        self.player.set_volume(int(state.get("volume", 80)))
+        pcfg = playerconfig.load(self.dirs.config_file.parent)
+        playerconfig.write_default(self.dirs.config_file.parent)
+        self.player = playermod.create_player(
+            self._mpv_position,
+            self._mpv_track_end,
+            ao=self._ao,
+            replaygain=pcfg["replaygain"],
+            gapless=pcfg["gapless"],
+        )
+        default_vol = pcfg["default_volume"]
+        saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
+        self.player.set_volume(saved_vol)
+        self.mpris = mprismod.create()
         now = self.query_one("#now", NowPlaying)
         now.volume = self.player.volume
 
@@ -244,7 +256,7 @@ class NaviTuiApp(KitApp):
             config["server"], config["username"], config["token"], config["salt"],
             art_dir=self.dirs.cache_dir / "art",
         )
-        self.notify("welcome to NaviTui ♪", timeout=4)
+        self.notify("welcome to theia-player ♪", timeout=4)
         self._start()
 
     def _save_secrets(self, config: dict) -> None:
@@ -527,6 +539,8 @@ class NaviTuiApp(KitApp):
             self.player.stop()
             now.set_song(None)
             self._render_queue()
+            if self.mpris is not None:
+                self.mpris.set_stopped()
             return
         self.player.play(self.client.stream_url(song.id), start=resume_at)
         now.set_song(song)
@@ -538,6 +552,9 @@ class NaviTuiApp(KitApp):
         self._render_queue()
         self._refresh_song_markers()
         self._persist_queue()
+        if self.mpris is not None:
+            self.mpris.set_song(song)
+            self.mpris.set_playing(True)
 
     def _refresh_song_markers(self) -> None:
         """Re-render the tracks pane so the ♪ marker follows the player."""
@@ -546,6 +563,8 @@ class NaviTuiApp(KitApp):
     def action_play_pause(self) -> None:
         if self.player.active:
             self.player.toggle_pause()
+            if self.mpris is not None:
+                self.mpris.set_playing(not self.player.paused)
         elif self.queue.current is not None:
             # resume a restored queue exactly where it left off
             self._play_current(resume_at=self._resume_position)
@@ -657,6 +676,8 @@ class NaviTuiApp(KitApp):
             now.set_playing(False)
             now.set_progress(0.0, 0.0)
             self._render_queue()
+            if self.mpris is not None:
+                self.mpris.set_stopped()
 
     # ── queue ─────────────────────────────────────────────────────────
     def _render_queue(self) -> None:
@@ -737,6 +758,8 @@ class NaviTuiApp(KitApp):
         self._render_queue()
         self._persist_queue()
         self.notify("queue cleared", timeout=2)
+        if self.mpris is not None:
+            self.mpris.set_stopped()
 
     def _persist_queue(self, position: float | None = None) -> None:
         data = self.queue.to_dict()
@@ -933,7 +956,7 @@ class NaviTuiApp(KitApp):
             self._load_view(self.view)
 
     def action_help(self) -> None:
-        self.push_screen(HelpModal(HELP_SECTIONS, title="NaviTui · keys"))
+        self.push_screen(HelpModal(HELP_SECTIONS, title="theia-player · keys"))
 
     def on_kit_theme_changed(self) -> None:
         if not self.kit_theme_previewing:
@@ -959,6 +982,8 @@ class NaviTuiApp(KitApp):
             self.notify("offline — showing cached library", severity="warning", timeout=4)
 
     async def action_quit(self) -> None:
+        if self.mpris is not None:
+            self.mpris.stop()
         if self.player is not None:
             self._persist_queue()
             self.player.terminate()

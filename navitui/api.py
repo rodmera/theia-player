@@ -20,7 +20,7 @@ import httpx
 from navitui.models import Album, Artist, Playlist, SearchResults, Song
 
 API_VERSION = "1.16.1"
-CLIENT_NAME = "navitui"
+CLIENT_NAME = "theia-player"
 
 
 class SubsonicError(Exception):
