@@ -213,7 +213,7 @@ class NaviTuiApp(KitApp):
         self.query_one("#art-panel", CoverArt).border_title = "cover"
         self.query_one("#queue-panel").border_title = "queue"
         saved_view = state.get("view", "all-songs")
-        if saved_view in VIEW_LABELS or saved_view.startswith("pl:"):
+        if saved_view in VIEW_LABELS or saved_view.startswith(("pl:", "artist:", "album:")):
             self.view = saved_view
 
         pcfg = self._pcfg
@@ -1200,7 +1200,7 @@ class NaviTuiApp(KitApp):
 
     def action_refresh(self) -> None:
         self._load_playlists()
-        if self.view.startswith("artist:"):
+        if self.view.startswith(("artist:", "album:")):
             pass  # ad-hoc view; nothing to re-trigger
         else:
             self._load_view(self.view)
@@ -1212,7 +1212,7 @@ class NaviTuiApp(KitApp):
         if self.screen is not self.screen_stack[0]:
             return  # modal open — don't yank state around underneath it
         self._load_playlists()
-        if not self.view.startswith("artist:"):
+        if not self.view.startswith(("artist:", "album:")):
             self._load_view(self.view)
 
     def action_help(self) -> None:

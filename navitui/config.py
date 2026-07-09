@@ -23,7 +23,7 @@ DEFAULT_KEYBINDS: dict = {
     "seek_back_big":        "shift+left",
     "seek_fwd_big":         "shift+right",
     "vol_down":             "minus",
-    "vol_up":               "plus",
+    "vol_up":               "plus,equals_sign",
     "mute":                 "m",
     "enqueue":              "a",
     "enqueue_next":         "A",
@@ -142,7 +142,7 @@ def write_default(config_dir: Path) -> None:
         '# seek_back_big        = "shift+left"\n'
         '# seek_fwd_big         = "shift+right"\n'
         '# vol_down             = "minus"\n'
-        '# vol_up               = "plus"\n'
+        '# vol_up               = "plus,equals_sign"\n'
         '# mute                 = "m"\n'
         '# enqueue              = "a"\n'
         '# enqueue_next         = "A"\n'
