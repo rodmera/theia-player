@@ -4,8 +4,8 @@ Runs in a background thread (dbus-python is synchronous/GLib-based, not
 asyncio-friendly). The app calls `update()` from the UI thread; the thread
 publishes the state on the D-Bus session bus.
 
-If dbus-python isn't installed the module still imports cleanly — `start()`
-returns None and the caller treats MPRIS as optional.
+If dbus-python isn't installed the module still imports cleanly — `create()`
+returns a no-op MprisController and the caller treats MPRIS as optional.
 
 Exposes: PlaybackStatus, Metadata (title/artist/album/art), CanPlay/Pause/etc.
 Does NOT implement transport control from external clients (play/pause via media
@@ -35,126 +35,134 @@ PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_IFACE = "org.mpris.MediaPlayer2"
 
 
-class _MprisService(dbus.service.Object):  # type: ignore[misc]
-    def __init__(self, bus: "dbus.SessionBus") -> None:
-        bus_name = dbus.service.BusName(BUS_NAME, bus=bus)
-        super().__init__(bus_name, OBJECT_PATH)
-        self._status = "Stopped"
-        self._meta: dict = self._empty_meta()
-        self._props = dbus.service.PropertiesInterface(self)
+def _define_service():
+    """Define _MprisService only when dbus is available — avoids NameError at class parse time."""
 
-    # ── root interface ────────────────────────────────────────────────
-    @dbus.service.method(ROOT_IFACE)
-    def Raise(self) -> None:
-        pass
+    class _MprisService(dbus.service.Object):  # type: ignore[misc]
+        def __init__(self, bus) -> None:
+            bus_name = dbus.service.BusName(BUS_NAME, bus=bus)
+            super().__init__(bus_name, OBJECT_PATH)
+            self._status = "Stopped"
+            self._meta: dict = self._empty_meta()
 
-    @dbus.service.method(ROOT_IFACE)
-    def Quit(self) -> None:
-        pass
+        # ── root interface ────────────────────────────────────────────────
+        @dbus.service.method(ROOT_IFACE)
+        def Raise(self) -> None:
+            pass
 
-    @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ss", out_signature="v")
-    def Get(self, iface: str, prop: str):
-        return self.GetAll(iface)[prop]
+        @dbus.service.method(ROOT_IFACE)
+        def Quit(self) -> None:
+            pass
 
-    @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
-    def GetAll(self, iface: str) -> dict:
-        if iface == ROOT_IFACE:
+        @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ss", out_signature="v")
+        def Get(self, iface: str, prop: str):
+            return self.GetAll(iface)[prop]
+
+        @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
+        def GetAll(self, iface: str) -> dict:
+            if iface == ROOT_IFACE:
+                return {
+                    "CanQuit": dbus.Boolean(False),
+                    "CanRaise": dbus.Boolean(False),
+                    "HasTrackList": dbus.Boolean(False),
+                    "Identity": dbus.String("theia-player"),
+                    "SupportedUriSchemes": dbus.Array([], signature="s"),
+                    "SupportedMimeTypes": dbus.Array([], signature="s"),
+                }
+            if iface == PLAYER_IFACE:
+                return {
+                    "PlaybackStatus": dbus.String(self._status),
+                    "LoopStatus": dbus.String("None"),
+                    "Rate": dbus.Double(1.0),
+                    "Shuffle": dbus.Boolean(False),
+                    "Metadata": dbus.Dictionary(self._meta, signature="sv"),
+                    "Volume": dbus.Double(1.0),
+                    "Position": dbus.Int64(0),
+                    "MinimumRate": dbus.Double(1.0),
+                    "MaximumRate": dbus.Double(1.0),
+                    "CanGoNext": dbus.Boolean(True),
+                    "CanGoPrevious": dbus.Boolean(True),
+                    "CanPlay": dbus.Boolean(True),
+                    "CanPause": dbus.Boolean(True),
+                    "CanSeek": dbus.Boolean(False),
+                    "CanControl": dbus.Boolean(False),
+                }
+            return {}
+
+        @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ssv")
+        def Set(self, iface: str, prop: str, value) -> None:
+            pass
+
+        @dbus.service.signal(dbus.PROPERTIES_IFACE, signature="sa{sv}as")
+        def PropertiesChanged(self, iface: str, changed: dict, invalidated: list) -> None:
+            pass
+
+        # ── player interface (no-op stubs) ────────────────────────────────
+        @dbus.service.method(PLAYER_IFACE)
+        def Play(self) -> None:
+            pass
+
+        @dbus.service.method(PLAYER_IFACE)
+        def Pause(self) -> None:
+            pass
+
+        @dbus.service.method(PLAYER_IFACE)
+        def PlayPause(self) -> None:
+            pass
+
+        @dbus.service.method(PLAYER_IFACE)
+        def Stop(self) -> None:
+            pass
+
+        @dbus.service.method(PLAYER_IFACE)
+        def Next(self) -> None:
+            pass
+
+        @dbus.service.method(PLAYER_IFACE)
+        def Previous(self) -> None:
+            pass
+
+        # ── state updates (called via GLib.idle_add) ──────────────────────
+        def _empty_meta(self) -> dict:
             return {
-                "CanQuit": dbus.Boolean(False),
-                "CanRaise": dbus.Boolean(False),
-                "HasTrackList": dbus.Boolean(False),
-                "Identity": dbus.String("theia-player"),
-                "SupportedUriSchemes": dbus.Array([], signature="s"),
-                "SupportedMimeTypes": dbus.Array([], signature="s"),
+                "mpris:trackid": dbus.ObjectPath("/org/mpris/MediaPlayer2/TrackList/NoTrack"),
+                "xesam:title": dbus.String(""),
+                "xesam:artist": dbus.Array([], signature="s"),
+                "xesam:album": dbus.String(""),
             }
-        if iface == PLAYER_IFACE:
-            return {
-                "PlaybackStatus": dbus.String(self._status),
-                "LoopStatus": dbus.String("None"),
-                "Rate": dbus.Double(1.0),
-                "Shuffle": dbus.Boolean(False),
-                "Metadata": dbus.Dictionary(self._meta, signature="sv"),
-                "Volume": dbus.Double(1.0),
-                "Position": dbus.Int64(0),
-                "MinimumRate": dbus.Double(1.0),
-                "MaximumRate": dbus.Double(1.0),
-                "CanGoNext": dbus.Boolean(True),
-                "CanGoPrevious": dbus.Boolean(True),
-                "CanPlay": dbus.Boolean(True),
-                "CanPause": dbus.Boolean(True),
-                "CanSeek": dbus.Boolean(False),
-                "CanControl": dbus.Boolean(False),
-            }
-        return {}
 
-    @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ssv")
-    def Set(self, iface: str, prop: str, value) -> None:
-        pass
+        def _set_status(self, status: str) -> None:
+            self._status = status
+            self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
 
-    @dbus.service.signal(dbus.PROPERTIES_IFACE, signature="sa{sv}as")
-    def PropertiesChanged(self, iface: str, changed: dict, invalidated: list) -> None:
-        pass
+        def _set_song(self, song: "Song | None", art_url: str = "") -> None:
+            if song is None:
+                self._meta = self._empty_meta()
+            else:
+                self._meta = {
+                    "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/track/{song.id}"),
+                    "xesam:title": dbus.String(song.title),
+                    "xesam:artist": dbus.Array([song.artist], signature="s"),
+                    "xesam:album": dbus.String(song.album),
+                    "mpris:length": dbus.Int64(song.duration * 1_000_000),
+                }
+                if art_url:
+                    self._meta["mpris:artUrl"] = dbus.String(art_url)
+            self.PropertiesChanged(PLAYER_IFACE, {"Metadata": dbus.Dictionary(self._meta, signature="sv")}, [])
 
-    # ── player interface (no-op stubs) ────────────────────────────────
-    @dbus.service.method(PLAYER_IFACE)
-    def Play(self) -> None:
-        pass
-
-    @dbus.service.method(PLAYER_IFACE)
-    def Pause(self) -> None:
-        pass
-
-    @dbus.service.method(PLAYER_IFACE)
-    def PlayPause(self) -> None:
-        pass
-
-    @dbus.service.method(PLAYER_IFACE)
-    def Stop(self) -> None:
-        pass
-
-    @dbus.service.method(PLAYER_IFACE)
-    def Next(self) -> None:
-        pass
-
-    @dbus.service.method(PLAYER_IFACE)
-    def Previous(self) -> None:
-        pass
-
-    # ── state updates (called from app thread via GLib.idle_add) ─────
-    def _empty_meta(self) -> dict:
-        return {
-            "mpris:trackid": dbus.ObjectPath("/org/mpris/MediaPlayer2/TrackList/NoTrack"),
-            "xesam:title": dbus.String(""),
-            "xesam:artist": dbus.Array([], signature="s"),
-            "xesam:album": dbus.String(""),
-        }
-
-    def _set_status(self, status: str) -> None:
-        self._status = status
-        self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
-
-    def _set_song(self, song: "Song | None", art_url: str = "") -> None:
-        if song is None:
-            self._meta = self._empty_meta()
-        else:
-            self._meta = {
-                "mpris:trackid": dbus.ObjectPath(f"/org/mpris/MediaPlayer2/track/{song.id}"),
-                "xesam:title": dbus.String(song.title),
-                "xesam:artist": dbus.Array([song.artist], signature="s"),
-                "xesam:album": dbus.String(song.album),
-                "mpris:length": dbus.Int64(song.duration * 1_000_000),
-            }
-            if art_url:
-                self._meta["mpris:artUrl"] = dbus.String(art_url)
-        self.PropertiesChanged(PLAYER_IFACE, {"Metadata": dbus.Dictionary(self._meta, signature="sv")}, [])
+    return _MprisService
 
 
 class MprisController:
-    """Thread-safe façade the app uses to push state changes."""
+    """Thread-safe façade the app uses to push state changes.
+
+    All public methods are safe to call whether or not dbus is available —
+    they silently no-op when MPRIS_AVAILABLE is False.
+    """
 
     def __init__(self) -> None:
-        self._svc: _MprisService | None = None
-        self._loop: "GLib.MainLoop | None" = None
+        self._svc = None
+        self._loop = None
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
@@ -162,7 +170,8 @@ class MprisController:
             return
         DBusGMainLoop(set_as_default=True)
         bus = dbus.SessionBus()
-        self._svc = _MprisService(bus)
+        MprisService = _define_service()
+        self._svc = MprisService(bus)
         self._loop = GLib.MainLoop()
         self._thread = threading.Thread(target=self._loop.run, daemon=True)
         self._thread.start()
@@ -180,8 +189,7 @@ class MprisController:
     def set_playing(self, playing: bool) -> None:
         if self._svc is None:
             return
-        status = "Playing" if playing else "Paused"
-        GLib.idle_add(self._svc._set_status, status)
+        GLib.idle_add(self._svc._set_status, "Playing" if playing else "Paused")
 
     def set_stopped(self) -> None:
         if self._svc is None:
