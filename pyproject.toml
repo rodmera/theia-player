@@ -18,6 +18,11 @@ dependencies = [
     "textual-image>=0.8",
     "ricekit @ git+https://github.com/Gheat1/ricekit",
 ]
+
+[project.optional-dependencies]
+mpris   = ["dbus-python"]
+discord = ["pypresence"]
+full    = ["dbus-python", "pypresence"]
 keywords = ["navidrome", "subsonic", "music", "player", "tui", "terminal", "textual", "mpv"]
 classifiers = [
     "Environment :: Console",

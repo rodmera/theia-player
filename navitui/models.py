@@ -86,6 +86,9 @@ class Song:
     suffix: str = ""
     bit_rate: int | None = None
     starred: bool = False
+    rating: int = 0        # 0-5, userRating from Navidrome
+    play_count: int = 0
+    genre: str = ""
 
     @classmethod
     def from_api(cls, d: dict) -> "Song":
@@ -104,6 +107,9 @@ class Song:
             suffix=d.get("suffix", ""),
             bit_rate=d.get("bitRate"),
             starred=bool(d.get("starred")),
+            rating=int(d.get("userRating", 0) or 0),
+            play_count=int(d.get("playCount", 0) or 0),
+            genre=d.get("genre", ""),
         )
 
     def to_dict(self) -> dict:

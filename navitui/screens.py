@@ -11,7 +11,7 @@ from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
@@ -202,6 +202,57 @@ class InputModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class LyricsModal(ModalScreen):
+    """Scrollable lyrics overlay. Dismiss with Escape or q."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+        Binding("j,down", "scroll_down", show=False),
+        Binding("k,up", "scroll_up", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    LyricsModal { align: center middle; background: $kit-overlay; }
+    LyricsModal #lyrics-box {
+        width: 72; height: 80%; max-height: 40;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    LyricsModal #lyrics-title { margin-bottom: 1; }
+    LyricsModal VerticalScroll { height: 1fr; }
+    LyricsModal VerticalScroll Static { background: $kit-modal-bg; }
+    """
+
+    def __init__(self, song_title: str, artist: str, lines: list[str]) -> None:
+        super().__init__()
+        self._song_title = song_title
+        self._artist = artist
+        self._lines = lines
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="lyrics-box"):
+            header = Text(no_wrap=True, overflow="ellipsis")
+            header.append(self._song_title, style=f"bold {palette.sub}")
+            header.append(f"  {self._artist}", style=palette.dim)
+            yield Static(header, id="lyrics-title")
+            with VerticalScroll(id="lyrics-scroll"):
+                for line in self._lines:
+                    yield Static(line or " ")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#lyrics-box"))
+        settle_pop_in(self, "#lyrics-box")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_scroll_down(self) -> None:
+        self.query_one("#lyrics-scroll", VerticalScroll).scroll_down()
+
+    def action_scroll_up(self) -> None:
+        self.query_one("#lyrics-scroll", VerticalScroll).scroll_up()
 
 
 class SearchModal(ModalScreen):

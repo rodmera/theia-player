@@ -190,6 +190,37 @@ class SubsonicClient:
         key = {"song": "id", "album": "albumId", "artist": "artistId"}[kind]
         await self._get("star" if star else "unstar", **{key: item_id})
 
+    async def set_rating(self, song_id: str, rating: int) -> None:
+        """rating: 0 (remove) or 1-5"""
+        await self._get("setRating", id=song_id, rating=max(0, min(5, rating)))
+
+    async def create_share(self, song_id: str) -> str:
+        body = await self._get("createShare", id=song_id)
+        shares = body.get("shares", {}).get("share", [])
+        if not shares:
+            raise SubsonicError("server returned no share object")
+        url = shares[0].get("url", "")
+        if not url:
+            raise SubsonicError("share URL is empty")
+        return url
+
+    async def get_lyrics(self, song_id: str) -> list[str]:
+        """Return lyric lines. Tries getLyricsBySongId first, then getLyrics."""
+        try:
+            body = await self._get("getLyricsBySongId", id=song_id)
+            for entry in body.get("lyricsList", {}).get("structuredLyrics", []):
+                lines = [l.get("value", "") for l in entry.get("line", [])]
+                if lines:
+                    return lines
+        except Exception:
+            pass
+        try:
+            body = await self._get("getLyrics", id=song_id)
+            text = body.get("lyrics", {}).get("value", "")
+            return text.splitlines() if text else []
+        except Exception:
+            return []
+
     # ── cover art ─────────────────────────────────────────────────────
     # 1200px: big enough that kitty/sixel terminals get a crisp image at
     # any panel size; halfcell terminals are bounded by cells either way

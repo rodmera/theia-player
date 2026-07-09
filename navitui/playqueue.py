@@ -72,6 +72,26 @@ class PlayQueue:
             self.index = min(self.index, len(self.songs) - 1)
         return song
 
+    def move_up(self, i: int) -> bool:
+        if i <= 0 or i >= len(self.songs):
+            return False
+        self.songs[i - 1], self.songs[i] = self.songs[i], self.songs[i - 1]
+        if self.index == i:
+            self.index -= 1
+        elif self.index == i - 1:
+            self.index += 1
+        return True
+
+    def move_down(self, i: int) -> bool:
+        if i < 0 or i >= len(self.songs) - 1:
+            return False
+        self.songs[i], self.songs[i + 1] = self.songs[i + 1], self.songs[i]
+        if self.index == i:
+            self.index += 1
+        elif self.index == i + 1:
+            self.index -= 1
+        return True
+
     def clear(self) -> None:
         self.songs = []
         self._original = []

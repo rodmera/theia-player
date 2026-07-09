@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import subprocess
 
 from rich.text import Text
 from textual import on, work
@@ -27,12 +28,12 @@ from ricekit.modals import HelpModal, PickerModal
 from ricekit.storage import AppDirs
 from ricekit.widgets import NavList, Splitter
 
-from navitui import anim, config as playerconfig, mpris as mprismod, player as playermod
+from navitui import anim, config as playerconfig, discord_rpc, mpris as mprismod, player as playermod
 from navitui.api import SubsonicClient, SubsonicError
 from navitui.art import CoverArt
 from navitui.models import Album, Artist, Playlist, Song
 from navitui.playqueue import PlayQueue
-from navitui.screens import InputModal, OnboardingScreen, SearchModal
+from navitui.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal
 from navitui.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
 
 VIEWS = [
@@ -66,6 +67,7 @@ HELP_SECTIONS = [
             ("A", "play track next"),
             ("x", "remove track (in queue panel)"),
             ("X", "clear queue"),
+            ("ctrl+↑ / ctrl+↓", "move track up / down in queue"),
             ("", "played tracks dim out — scroll up for history"),
         ],
     ),
@@ -77,12 +79,18 @@ HELP_SECTIONS = [
             ("/", "search  (enter play · a queue · A play next)"),
             ("p", "add track to a playlist"),
             ("f", "star / unstar track"),
+            ("1-5", "rate track (0 = remove rating)"),
+            ("v", "toggle track selection  (a/A/f apply to all selected)"),
+            ("e / E", "go to album / artist of highlighted track"),
+            ("L", "show / scroll lyrics of current track"),
+            ("S", "create share link (copies to clipboard)"),
             ("R", "refresh from server"),
         ],
     ),
     (
         "app",
         [
+            ("N", "toggle desktop notifications"),
             ("t", "cycle kit themes"),
             ("T", "theme picker (live preview)"),
             ("?", "this help"),
@@ -143,13 +151,22 @@ class NaviTuiApp(KitApp):
     """
 
     def __init__(self, client: SubsonicClient | None = None, ao: str | None = None) -> None:
-        super().__init__()
+        # Load config BEFORE super().__init__() so we can patch class BINDINGS
         self.dirs = AppDirs("theia-player")
+        _pcfg = playerconfig.load(self.dirs.config_file.parent)
+        playerconfig.write_default(self.dirs.config_file.parent)
+        NaviTuiApp.BINDINGS = playerconfig.build_bindings(_pcfg.get("keybinds", {}))
+
+        super().__init__()
+        self._pcfg = _pcfg
         self.client: SubsonicClient | None = client
         self._ao = ao
         self.queue = PlayQueue()
         self.player = None
         self.mpris: mprismod.MprisController | None = None
+        self.discord: discord_rpc.DiscordController | None = None
+        self._notify_on: bool = bool(_pcfg.get("desktop_notifications", True))
+        self._selection: set[str] = set()  # selected song IDs
         self.view: str = "all-songs"  # sidebar view id (or "pl:<id>", or "artist:<id>")
         self._songs: list[Song] = []  # what the tracks pane shows
         self._playlists: list[Playlist] = []
@@ -199,8 +216,7 @@ class NaviTuiApp(KitApp):
         if saved_view in VIEW_LABELS or saved_view.startswith("pl:"):
             self.view = saved_view
 
-        pcfg = playerconfig.load(self.dirs.config_file.parent)
-        playerconfig.write_default(self.dirs.config_file.parent)
+        pcfg = self._pcfg
         self.player = playermod.create_player(
             self._mpv_position,
             self._mpv_track_end,
@@ -212,6 +228,10 @@ class NaviTuiApp(KitApp):
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
         self.player.set_volume(saved_vol)
         self.mpris = mprismod.create()
+        self.discord = discord_rpc.create(
+            pcfg.get("discord_app_id", ""),
+            enabled=bool(pcfg.get("discord_rich_presence", False)),
+        )
         now = self.query_one("#now", NowPlaying)
         now.volume = self.player.volume
 
@@ -384,11 +404,37 @@ class NaviTuiApp(KitApp):
             return playlist.name if playlist else "playlist"
         return VIEW_LABELS.get(view_id, "tracks")
 
+    def _apply_filters(self, songs: list[Song]) -> list[Song]:
+        f = self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS)
+        exclude_titles = [t.lower() for t in f.get("exclude_titles", [])]
+        exclude_artists = [a.lower() for a in f.get("exclude_artists", [])]
+        exclude_genres = [g.lower() for g in f.get("exclude_genres", [])]
+        min_dur = int(f.get("min_duration", 0))
+        max_dur = int(f.get("max_duration", 0))
+        min_plays = int(f.get("min_play_count", 0))
+
+        def keep(s: Song) -> bool:
+            if exclude_titles and any(t in s.title.lower() for t in exclude_titles):
+                return False
+            if exclude_artists and s.artist.lower() in exclude_artists:
+                return False
+            if exclude_genres and s.genre.lower() in exclude_genres:
+                return False
+            if min_dur and s.duration <= min_dur:
+                return False
+            if max_dur and s.duration >= max_dur:
+                return False
+            if min_plays and s.play_count < min_plays:
+                return False
+            return True
+
+        return [s for s in songs if keep(s)]
+
     def _show_songs(self, songs: list[Song], title: str) -> None:
-        self._songs = songs
+        self._songs = self._apply_filters(songs)
         panel = self.query_one("#tracks-panel")
         panel.border_title = title
-        self._fill("#tracks-list", [self._song_row(s) for s in songs], "#tracks-panel")
+        self._fill("#tracks-list", [self._song_row(s) for s in self._songs], "#tracks-panel")
 
     @work(exclusive=True, group="songs")
     async def _load_view(self, view_id: str) -> None:
@@ -470,14 +516,49 @@ class NaviTuiApp(KitApp):
     def _song_row(self, s: Song) -> Option:
         current = self.queue.current
         is_current = current is not None and s.id == current.id
+        is_selected = s.id in self._selection
+        cols = self._pcfg.get("columns", playerconfig.DEFAULT_COLUMNS)
         row = Text(no_wrap=True, overflow="ellipsis")
-        marker = anim.NOTE_FRAMES[0] if is_current else "·"
-        row.append(f" {marker} ", style=palette.blue if is_current else palette.vfaint)
+
+        # selection marker or play marker
+        if is_selected:
+            row.append(" ● ", style=palette.peach)
+        else:
+            marker = anim.NOTE_FRAMES[0] if is_current else "·"
+            row.append(f" {marker} ", style=palette.blue if is_current else palette.vfaint)
+
+        if cols.get("track_number") and s.track:
+            row.append(f"{s.track:>2d} ", style=palette.vfaint)
+
         row.append(s.title, style=f"bold {palette.blue}" if is_current else palette.text)
+
         if s.starred:
             row.append(f" {icons.STAR}", style=palette.yellow)
-        row.append(f"  {s.artist}", style=palette.dim)
-        row.append(f" · {anim.fmt_time(s.duration)}", style=palette.vfaint)
+
+        if s.rating and cols.get("rating"):
+            row.append(f" {'★' * s.rating}", style=palette.yellow)
+
+        if cols.get("artist", True):
+            row.append(f"  {s.artist}", style=palette.dim)
+
+        if cols.get("album") and s.album:
+            row.append(f" · {s.album}", style=palette.faint)
+
+        if cols.get("year") and s.year:
+            row.append(f" · {s.year}", style=palette.vfaint)
+
+        if cols.get("genre") and s.genre:
+            row.append(f" · {s.genre}", style=palette.vfaint)
+
+        if cols.get("bit_rate") and s.bit_rate:
+            row.append(f" · {s.bit_rate}k", style=palette.vfaint)
+
+        if cols.get("play_count") and s.play_count:
+            row.append(f" · {s.play_count}×", style=palette.vfaint)
+
+        if cols.get("duration", True):
+            row.append(f" · {anim.fmt_time(s.duration)}", style=palette.vfaint)
+
         return Option(row, id=s.id)
 
     def _fill(self, selector: str, options: list[Option], subtitle_of: str | None = None) -> None:
@@ -555,6 +636,8 @@ class NaviTuiApp(KitApp):
         if self.mpris is not None:
             self.mpris.set_song(song)
             self.mpris.set_playing(True)
+        self._send_notification(song)
+        self._update_discord(song)
 
     def _refresh_song_markers(self) -> None:
         """Re-render the tracks pane so the ♪ marker follows the player."""
@@ -616,6 +699,163 @@ class NaviTuiApp(KitApp):
         self.query_one("#now", NowPlaying).repeat = mode
         self.dirs.save_state({"repeat": mode.value})
         self.notify(f"repeat {mode.value}", timeout=1.5)
+
+    # ── notifications ─────────────────────────────────────────────────
+    def _send_notification(self, song: Song | None) -> None:
+        if not self._notify_on or song is None:
+            return
+        try:
+            args = ["notify-send", "-t", "5000", song.title, f"{song.artist} — {song.album}"]
+            art = self.client.cached_art(song.cover_art) if (self.client and song.cover_art) else None
+            if art:
+                args += ["-i", str(art)]
+            subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            pass  # notify-send not installed
+
+    def action_toggle_notifications(self) -> None:
+        self._notify_on = not self._notify_on
+        self.notify(f"notifications {'on' if self._notify_on else 'off'}", timeout=2)
+
+    # ── discord ───────────────────────────────────────────────────────
+    def _update_discord(self, song: Song | None) -> None:
+        if self.discord is None:
+            return
+        if song is None:
+            self.discord.clear()
+            return
+        art_path = self.client.cached_art(song.cover_art) if (self.client and song.cover_art) else None
+        self.discord.update(
+            title=song.title,
+            artist=song.artist,
+            album=song.album,
+            art_url=f"file://{art_path}" if art_path else "",
+            position=self.player.position if self.player else 0.0,
+            duration=float(song.duration),
+        )
+
+    # ── queue reorder ─────────────────────────────────────────────────
+    def action_queue_move(self, direction: int) -> None:
+        focused = self.focused
+        if focused is None or focused.id != "queue-list":
+            return
+        ol = self.query_one("#queue-list")
+        if ol.highlighted is None:
+            return
+        i = ol.highlighted
+        moved = self.queue.move_up(i) if direction < 0 else self.queue.move_down(i)
+        if moved:
+            new_i = i - 1 if direction < 0 else i + 1
+            self._render_queue()
+            self.query_one("#queue-list").highlighted = new_i
+            self._persist_queue()
+
+    # ── share ─────────────────────────────────────────────────────────
+    @work(group="mutate")
+    async def action_share(self) -> None:
+        if self.client is None:
+            return
+        song = self._highlighted_song() or self.queue.current
+        if song is None:
+            self.notify("highlight a track first", timeout=3)
+            return
+        try:
+            url = await self.client.create_share(song.id)
+        except Exception as e:
+            self.notify(f"share failed: {e}", severity="error", timeout=5)
+            return
+        for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["pbcopy"]):
+            try:
+                subprocess.run(cmd, input=url.encode(), check=True, timeout=3,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.notify(f"link copied: {url}", timeout=8)
+                return
+            except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                continue
+        self.notify(f"share: {url}", timeout=12)
+
+    # ── rating ────────────────────────────────────────────────────────
+    def action_rate(self, n: int) -> None:
+        song = self._highlighted_song()
+        if song is None:
+            return
+        song.rating = n
+        self._do_rate(song.id, n)
+        self._refresh_song_markers()
+        label = ("★" * n + "☆" * (5 - n)) if n > 0 else "rating removed"
+        self.notify(f"{label}  {song.title}", timeout=2)
+
+    @work(group="mutate")
+    async def _do_rate(self, song_id: str, rating: int) -> None:
+        self._mutations += 1
+        try:
+            await self.client.set_rating(song_id, rating)
+        except Exception as e:
+            self.notify(f"rating failed: {e}", severity="warning")
+        finally:
+            self._mutations -= 1
+
+    # ── lyrics ────────────────────────────────────────────────────────
+    @work(exclusive=True, group="lyrics")
+    async def action_show_lyrics(self) -> None:
+        if self.client is None:
+            return
+        song = self.queue.current
+        if song is None:
+            self.notify("nothing playing", timeout=3)
+            return
+        self.notify("fetching lyrics…", timeout=2)
+        lines = await self.client.get_lyrics(song.id)
+        if not lines:
+            self.notify("no lyrics found", timeout=3)
+            return
+        self.push_screen(LyricsModal(song.title, song.artist, lines))
+
+    # ── go to album / artist ──────────────────────────────────────────
+    def action_go_to_album(self) -> None:
+        song = self._highlighted_song() or self.queue.current
+        if song is None or song.album_id is None:
+            return
+        self._load_album(song.album_id, song.album)
+
+    def action_go_to_artist(self) -> None:
+        song = self._highlighted_song() or self.queue.current
+        if song is None or song.artist_id is None:
+            return
+        self._load_artist_songs(Artist(id=song.artist_id, name=song.artist))
+
+    @work(exclusive=True, group="songs")
+    async def _load_album(self, album_id: str, album_name: str) -> None:
+        title = f"album · {album_name}"
+        self.view = f"album:{album_id}"
+        self._highlight_view(None)
+        try:
+            songs = await self.client.get_album_songs(album_id)
+        except Exception as e:
+            self._connection_trouble(e)
+            return
+        self._show_songs(songs, title)
+        self.query_one("#tracks-list", ClickList).focus()
+
+    # ── selection ─────────────────────────────────────────────────────
+    def action_toggle_selection(self) -> None:
+        focused = self.focused
+        if focused is None or focused.id != "tracks-list":
+            return
+        ol = self.query_one("#tracks-list")
+        if ol.highlighted is None or ol.highlighted >= len(self._songs):
+            return
+        song = self._songs[ol.highlighted]
+        if song.id in self._selection:
+            self._selection.discard(song.id)
+        else:
+            self._selection.add(song.id)
+        self._refresh_song_markers()
+
+    def _clear_selection(self) -> None:
+        if self._selection:
+            self._selection.clear()
+            self._refresh_song_markers()
 
     # ── mpv thread callbacks ──────────────────────────────────────────
     # These arrive on mpv's event thread and must NEVER block: a blocking
@@ -725,14 +965,25 @@ class NaviTuiApp(KitApp):
         ol = self.query_one("#tracks-list", NavList)
         if ol.highlighted is None or ol.highlighted >= len(self._songs):
             return
-        song = self._songs[ol.highlighted]
-        if play_next:
-            self.queue.add_next([song])
+        if self._selection:
+            songs = [s for s in self._songs if s.id in self._selection]
+            if play_next:
+                self.queue.add_next(songs)
+            else:
+                self.queue.add(songs)
+            self._render_queue()
+            self._persist_queue()
+            self.notify(f"queued {'next: ' if play_next else ''}{len(songs)} tracks", timeout=2)
+            self._clear_selection()
         else:
-            self.queue.add([song])
-        self._render_queue()
-        self._persist_queue()
-        self.notify(f"queued {'next: ' if play_next else ''}{song.title}", timeout=2)
+            song = self._songs[ol.highlighted]
+            if play_next:
+                self.queue.add_next([song])
+            else:
+                self.queue.add([song])
+            self._render_queue()
+            self._persist_queue()
+            self.notify(f"queued {'next: ' if play_next else ''}{song.title}", timeout=2)
 
     def action_queue_remove(self) -> None:
         focused = self.focused
@@ -844,6 +1095,15 @@ class NaviTuiApp(KitApp):
 
     # ── starring ──────────────────────────────────────────────────────
     def action_star(self) -> None:
+        if self._selection:
+            songs = [s for s in self._songs if s.id in self._selection]
+            for s in songs:
+                s.starred = not s.starred
+                self._star(s.id, "song", s.starred)
+            self._refresh_song_markers()
+            self._render_queue()
+            self._clear_selection()
+            return
         song = self._highlighted_song()
         if song is None:
             return
@@ -981,9 +1241,19 @@ class NaviTuiApp(KitApp):
         else:
             self.notify("offline — showing cached library", severity="warning", timeout=4)
 
+    def on_key(self, event) -> None:
+        """Handle keys that can't be expressed as parameterised Binding actions."""
+        if event.key in ("1", "2", "3", "4", "5", "0"):
+            focused = self.focused
+            if focused is not None and focused.id == "tracks-list":
+                self.action_rate(int(event.key))
+                event.stop()
+
     async def action_quit(self) -> None:
         if self.mpris is not None:
             self.mpris.stop()
+        if self.discord is not None:
+            self.discord.stop()
         if self.player is not None:
             self._persist_queue()
             self.player.terminate()

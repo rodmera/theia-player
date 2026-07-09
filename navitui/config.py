@@ -9,29 +9,108 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-DEFAULTS: dict = {
-    "replaygain": "album",       # track | album | no
-    "gapless": "yes",            # yes | no | weak
-    "default_volume": 80,        # 0-130, -1 = restore last
-    "desktop_notifications": True,
+# ── defaults ──────────────────────────────────────────────────────────────────
+
+DEFAULT_KEYBINDS: dict = {
+    "play_pause":           "space",
+    "next_track":           "n",
+    "prev_track":           "b",
+    "search":               "slash",
+    "shuffle":              "s",
+    "repeat":               "r",
+    "seek_back":            "left",
+    "seek_fwd":             "right",
+    "seek_back_big":        "shift+left",
+    "seek_fwd_big":         "shift+right",
+    "vol_down":             "minus",
+    "vol_up":               "plus",
+    "mute":                 "m",
+    "enqueue":              "a",
+    "enqueue_next":         "A",
+    "queue_remove":         "x",
+    "queue_clear":          "X",
+    "queue_move_up":        "ctrl+up",
+    "queue_move_down":      "ctrl+down",
+    "star":                 "f",
+    "share":                "S",
+    "lyrics":               "L",
+    "go_to_album":          "e",
+    "go_to_artist":         "E",
+    "toggle_selection":     "v",
+    "playlist_add":         "p",
+    "notifications_toggle": "N",
+    "panel_prev":           "h",
+    "panel_next":           "l",
+    "refresh":              "R",
+    "theme_cycle":          "t",
+    "theme_pick":           "T",
+    "help":                 "question_mark",
+    "quit":                 "q",
 }
 
+DEFAULT_FILTERS: dict = {
+    "exclude_titles":   [],   # exclude songs whose title contains any string
+    "exclude_artists":  [],   # exclude songs by these artists (exact)
+    "exclude_genres":   [],   # exclude songs with these genres
+    "min_duration":     0,    # 0 = disabled; exclude songs shorter than N seconds
+    "max_duration":     0,    # 0 = disabled; exclude songs longer than N seconds
+    "min_play_count":   0,    # 0 = disabled; exclude songs with fewer plays
+}
+
+DEFAULT_COLUMNS: dict = {
+    "track_number": False,
+    "artist":       True,
+    "album":        False,
+    "year":         False,
+    "duration":     True,
+    "bit_rate":     False,
+    "genre":        False,
+    "rating":       False,
+    "play_count":   False,
+}
+
+DEFAULTS: dict = {
+    # playback
+    "replaygain":           "album",   # track | album | no
+    "gapless":              "yes",     # yes | no | weak
+    "default_volume":       80,        # 0-130, -1 = restore last
+    # integrations
+    "desktop_notifications": True,
+    "discord_rich_presence": False,
+    "discord_app_id":       "",        # get one at discord.com/developers/applications
+    # sub-tables (merged separately below)
+    "keybinds": DEFAULT_KEYBINDS,
+    "filters":  DEFAULT_FILTERS,
+    "columns":  DEFAULT_COLUMNS,
+}
+
+# ── loader ────────────────────────────────────────────────────────────────────
 
 def load(config_dir: Path) -> dict:
     """Return merged config: defaults + whatever player.toml overrides."""
-    cfg = dict(DEFAULTS)
+    cfg: dict = {
+        k: (dict(v) if isinstance(v, dict) else v)
+        for k, v in DEFAULTS.items()
+    }
     path = config_dir / "player.toml"
-    if path.exists():
-        try:
-            overrides = tomllib.loads(path.read_text())
-            cfg.update({k: v for k, v in overrides.items() if k in DEFAULTS})
-        except Exception:
-            pass  # malformed file → keep defaults
+    if not path.exists():
+        return cfg
+    try:
+        overrides = tomllib.loads(path.read_text())
+    except Exception:
+        return cfg
+    for k, v in overrides.items():
+        if k not in DEFAULTS:
+            continue
+        if isinstance(v, dict) and isinstance(cfg.get(k), dict):
+            cfg[k] = {**cfg[k], **{sk: sv for sk, sv in v.items() if sk in cfg[k]}}
+        else:
+            cfg[k] = v
     return cfg
 
 
 def write_default(config_dir: Path) -> None:
-    """Write a commented default player.toml on first run."""
+    """Write a comprehensive commented player.toml on first run."""
     path = config_dir / "player.toml"
     if path.exists():
         return
@@ -39,8 +118,116 @@ def write_default(config_dir: Path) -> None:
     path.write_text(
         "# theia-player — player settings\n"
         "# Restart the app after editing.\n\n"
+
+        "# ── Playback ─────────────────────────────────────────────────────────\n"
         '# replaygain = "album"   # track | album | no\n'
         '# gapless    = "yes"     # yes | no | weak\n'
-        "# default_volume = 80    # 0-130, -1 = restore last session\n"
+        "# default_volume = 80    # 0-130, -1 = restore last session\n\n"
+
+        "# ── Integrations ─────────────────────────────────────────────────────\n"
         "# desktop_notifications = true\n"
+        "# discord_rich_presence  = false\n"
+        '# discord_app_id         = ""   # discord.com/developers/applications\n\n'
+
+        "# ── Keybinds ─────────────────────────────────────────────────────────\n"
+        "# [keybinds]\n"
+        '# play_pause           = "space"\n'
+        '# next_track           = "n"\n'
+        '# prev_track           = "b"\n'
+        '# search               = "slash"\n'
+        '# shuffle              = "s"\n'
+        '# repeat               = "r"\n'
+        '# seek_back            = "left"\n'
+        '# seek_fwd             = "right"\n'
+        '# seek_back_big        = "shift+left"\n'
+        '# seek_fwd_big         = "shift+right"\n'
+        '# vol_down             = "minus"\n'
+        '# vol_up               = "plus"\n'
+        '# mute                 = "m"\n'
+        '# enqueue              = "a"\n'
+        '# enqueue_next         = "A"\n'
+        '# queue_remove         = "x"\n'
+        '# queue_clear          = "X"\n'
+        '# queue_move_up        = "ctrl+up"\n'
+        '# queue_move_down      = "ctrl+down"\n'
+        '# star                 = "f"\n'
+        '# share                = "S"\n'
+        '# lyrics               = "L"\n'
+        '# go_to_album          = "e"\n'
+        '# go_to_artist         = "E"\n'
+        '# toggle_selection     = "v"\n'
+        '# playlist_add         = "p"\n'
+        '# notifications_toggle = "N"\n'
+        '# panel_prev           = "h"\n'
+        '# panel_next           = "l"\n'
+        '# refresh              = "R"\n'
+        '# theme_cycle          = "t"\n'
+        '# theme_pick           = "T"\n'
+        '# help                 = "question_mark"\n'
+        '# quit                 = "q"\n\n'
+
+        "# ── Library Filters ───────────────────────────────────────────────────\n"
+        "# [filters]\n"
+        '# exclude_titles  = []   # exclude songs whose title contains any string\n'
+        '# exclude_artists = []   # e.g. ["Various Artists"]\n'
+        '# exclude_genres  = []   # e.g. ["Podcast", "Audiobook"]\n'
+        "# min_duration    = 0    # seconds; 0 = disabled\n"
+        "# max_duration    = 0    # seconds; 0 = disabled\n"
+        "# min_play_count  = 0    # 0 = disabled\n\n"
+
+        "# ── Columns ──────────────────────────────────────────────────────────\n"
+        "# [columns]\n"
+        "# track_number = false\n"
+        "# artist       = true\n"
+        "# album        = false\n"
+        "# year         = false\n"
+        "# duration     = true\n"
+        "# bit_rate     = false\n"
+        "# genre        = false\n"
+        "# rating       = false\n"
+        "# play_count   = false\n"
     )
+
+
+# ── binding builder ───────────────────────────────────────────────────────────
+
+def build_bindings(keybinds: dict):
+    """Return a BINDINGS list for NaviTuiApp using the merged keybind map."""
+    from textual.binding import Binding
+    kb = {**DEFAULT_KEYBINDS, **keybinds}
+    return [
+        Binding(kb["play_pause"],           "play_pause",           "play/pause"),
+        Binding(kb["next_track"],           "next_track",           "next"),
+        Binding(kb["prev_track"],           "prev_track",           show=False),
+        Binding(kb["search"],               "search",               "search"),
+        Binding(kb["shuffle"],              "toggle_shuffle",       "shuffle"),
+        Binding(kb["repeat"],               "cycle_repeat",         "repeat"),
+        Binding(kb["seek_back"],            "seek(-5)",             show=False),
+        Binding(kb["seek_fwd"],             "seek(5)",              show=False),
+        Binding(kb["seek_back_big"],        "seek(-30)",            show=False),
+        Binding(kb["seek_fwd_big"],         "seek(30)",             show=False),
+        Binding(kb["vol_down"],             "volume(-5)",           show=False),
+        Binding(kb["vol_up"],               "volume(5)",            show=False),
+        Binding(kb["mute"],                 "mute",                 show=False),
+        Binding(kb["enqueue"],              "enqueue(False)",       show=False),
+        Binding(kb["enqueue_next"],         "enqueue(True)",        show=False),
+        Binding(kb["queue_remove"],         "queue_remove",         show=False),
+        Binding(kb["queue_clear"],          "queue_clear",          show=False),
+        Binding(kb["queue_move_up"],        "queue_move(-1)",       show=False),
+        Binding(kb["queue_move_down"],      "queue_move(1)",        show=False),
+        Binding(kb["star"],                 "star",                 show=False),
+        Binding(kb["share"],                "share",                show=False),
+        Binding(kb["lyrics"],               "show_lyrics",          show=False),
+        Binding(kb["go_to_album"],          "go_to_album",          show=False),
+        Binding(kb["go_to_artist"],         "go_to_artist",         show=False),
+        Binding(kb["toggle_selection"],     "toggle_selection",     show=False),
+        Binding(kb["playlist_add"],         "playlist_add",         show=False),
+        Binding(kb["notifications_toggle"], "toggle_notifications", show=False),
+        Binding(kb["panel_prev"],           "focus_panel(-1)",      show=False),
+        Binding(kb["panel_next"],           "focus_panel(1)",       show=False),
+        Binding(kb["refresh"],              "refresh",              show=False),
+        Binding(kb["theme_cycle"],          "cycle_kit_theme",      "theme"),
+        Binding(kb["theme_pick"],           "change_theme",         show=False),
+        Binding(kb["help"],                 "help",                 "help"),
+        Binding(kb["quit"],                 "quit",                 "quit"),
+    ]
