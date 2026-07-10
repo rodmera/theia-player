@@ -356,6 +356,8 @@ class TheIAPlayerApp(KitApp):
         if getattr(self, "private_mode", False):
             text.append("[Private] ", style="bold #ff007f")
         text.append(f"{self.client.username}@{host}", style=palette.dim)
+        from theiaplayer import __version__
+        text.append(f" · v{__version__}", style=palette.dim)
         self.query_one("#status", Static).update(text)
 
     # ── the heartbeat (all constant animation) ────────────────────────
