@@ -171,6 +171,24 @@ class Player:
         self._m.mute = not self._m.mute
         return bool(self._m.mute)
 
+    def get_audio_devices(self) -> list[dict]:
+        try:
+            return self._m["audio-device-list"] or []
+        except Exception:
+            return []
+
+    def set_audio_device(self, name: str) -> None:
+        try:
+            self._m["audio-device"] = name
+        except Exception:
+            pass
+
+    def get_current_audio_device(self) -> str:
+        try:
+            return self._m["audio-device"] or "auto"
+        except Exception:
+            return "auto"
+
     def terminate(self) -> None:
         self._closing = True  # observers go quiet before the core dies
         self._want_playing = False
@@ -216,6 +234,15 @@ class NullPlayer:
 
     def toggle_mute(self) -> bool:
         return False
+
+    def get_audio_devices(self) -> list[dict]:
+        return []
+
+    def set_audio_device(self, name: str) -> None:
+        pass
+
+    def get_current_audio_device(self) -> str:
+        return "auto"
 
     def terminate(self) -> None:
         pass

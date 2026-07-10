@@ -503,3 +503,57 @@ class ServerSwitcherModal(ModalScreen):
         Binding("escape", "cancel", show=False),
         Binding("q", "cancel", show=False),
     ]
+
+
+class AudioDeviceSwitcherModal(ModalScreen):
+    """Modal to switch between different audio output devices."""
+
+    DEFAULT_CSS = """
+    AudioDeviceSwitcherModal { align: center middle; background: $kit-overlay; }
+    AudioDeviceSwitcherModal #device-box {
+        width: 52; height: auto; max-height: 18;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    AudioDeviceSwitcherModal #device-title { margin-bottom: 1; }
+    AudioDeviceSwitcherModal OptionList { height: auto; max-height: 10; border: none; }
+    """
+
+    def __init__(self, devices: list[dict], active_device: str) -> None:
+        super().__init__()
+        self._devices = devices
+        self._active_device = active_device
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="device-box"):
+            yield Static("Select Audio Output Device:", id="device-title", style=f"bold {palette.sub}")
+            options = []
+            for d in self._devices:
+                name = d.get("name", "auto")
+                desc = d.get("description", name)
+                label = f"● {desc}" if name == self._active_device else f"  {desc}"
+                options.append(Option(label, id=name))
+            yield OptionList(*options, id="device-list")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#device-box"))
+        settle_pop_in(self, "#device-box")
+        ol = self.query_one("#device-list", OptionList)
+        ol.focus()
+        try:
+            idx = next((i for i, d in enumerate(self._devices) if d.get("name") == self._active_device), 0)
+            ol.highlighted = idx
+        except Exception:
+            pass
+
+    @on(OptionList.OptionSelected)
+    def on_select(self, event: OptionList.OptionSelected) -> None:
+        if event.option.id:
+            self.dismiss(event.option.id)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+    ]

@@ -140,6 +140,7 @@ class TheIAPlayerApp(KitApp):
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
         Binding("ctrl+s", "switch_server", "switch server", show=True),
+        Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -332,6 +333,10 @@ class TheIAPlayerApp(KitApp):
         path.chmod(0o600)
 
     def _start(self) -> None:
+        # Restore saved audio device if available
+        saved_device = self.dirs.load_state().get("audio_device")
+        if saved_device and self.player is not None:
+            self.player.set_audio_device(saved_device)
         self._render_status()
         cached = self.dirs.read_cache("playlists")
         if cached:
@@ -873,6 +878,28 @@ class TheIAPlayerApp(KitApp):
             self.notify("Server connected successfully!", timeout=2)
         except Exception as e:
             self.notify(f"Connection failed: {e}", severity="error", timeout=4)
+
+    def action_switch_audio_device(self) -> None:
+        if self.player is None:
+            return
+        devices = self.player.get_audio_devices()
+        if not devices:
+            self.notify("No audio output devices detected", severity="warning", timeout=4)
+            return
+        active_device = self.player.get_current_audio_device()
+        from theiaplayer.screens import AudioDeviceSwitcherModal
+        self.push_screen(
+            AudioDeviceSwitcherModal(devices, active_device),
+            self._on_audio_device_selected
+        )
+
+    def _on_audio_device_selected(self, selected: str | None) -> None:
+        if selected and self.player is not None:
+            self.player.set_audio_device(selected)
+            self.dirs.save_state({"audio_device": selected})
+            devices = self.player.get_audio_devices()
+            desc = next((d.get("description", selected) for d in devices if d.get("name") == selected), selected)
+            self.notify(f"Audio output: {desc}", timeout=3)
 
     def _check_autoplay(self) -> None:
         if not getattr(self, "autoplay_enabled", True):

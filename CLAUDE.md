@@ -155,6 +155,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Vista de Inicio Inteligente (Home Dashboard) | `app.py` | Vista `home` con nodo `🏠 home` en sidebar que reúne recomendaciones, pistas frecuentes e incorporaciones nuevas en un solo mix dinámico sin duplicados. |
 | Soporte Multi-Servidor (Profile Switcher) | `app.py`, `screens.py` | `ctrl+s` — Modal interactivo de cambio de servidor en caliente con reconexión de cliente Subsonic y flushing seguro de cola para evitar cruce de tracks. |
 | Agrupación de Playlists en Carpetas | `app.py` | Detección de `/` en los nombres de playlists en el sidebar para agruparlas cosméticamente bajo cabeceras destacadas e indentación visual. |
+| Selección de Dispositivo de Audio (Device Switcher) | `app.py`, `screens.py`, `player.py` | `ctrl+d` — Modal interactivo que consulta `audio-device-list` de `mpv` en tiempo real y te permite alternar en caliente y en tiempo real tu dispositivo de salida de audio (parlante, DAC BT, audífonos Jack); persiste la preferencia en estado. |
 | Go to album / artist | `app.py` | `e` / `E` desde cualquier track |
 | Multi-selección | `app.py` | `v` toggle; `a`/`A`/`f` operan sobre todos |
 | Filtros de biblioteca | `config.py`, `app.py` | `[filters]` en player.toml |
