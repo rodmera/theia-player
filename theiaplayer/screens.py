@@ -473,7 +473,7 @@ class ServerSwitcherModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="switcher-box"):
-            yield Static("Select Server Profile:", id="switcher-title", style=f"bold {palette.sub}")
+            yield Static(Text("Select Server Profile:", style=f"bold {palette.sub}"), id="switcher-title")
             options = []
             for p in self._profiles:
                 label = f"● {p}" if p == self._active_profile else f"  {p}"
@@ -525,7 +525,7 @@ class AudioDeviceSwitcherModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="device-box"):
-            yield Static("Select Audio Output Device:", id="device-title", style=f"bold {palette.sub}")
+            yield Static(Text("Select Audio Output Device:", style=f"bold {palette.sub}"), id="device-title")
             options = []
             for d in self._devices:
                 name = d.get("name", "auto")
