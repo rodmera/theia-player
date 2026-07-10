@@ -163,18 +163,20 @@ El proyecto cuenta con un validador automatizado en modo headless que ejecuta un
 
 *Nota técnica: Se corrigió quirúrgicamente un bug heredado en este script, actualizando la selección de foco al ID correcto (`#pane1-list` → `#sidebar-list`). La suite ahora pasa limpia con código de salida `0` (exit 0).*
 
-## Compilación y Distribución (Build Standalone Binary)
+## Compilación, Automatización y Versionado Autónomo (DevOps Pipeline)
 
-Para distribuir el reproductor como un **único archivo binario de terminal autocontenido** (idéntico a `fzf` o `ripgrep`), de modo que no requiera instalar Python ni dependencias en la máquina destino del usuario, puedes compilarlo ejecutando:
+El versionamiento y empaquetado del reproductor es administrado de forma **autónoma e inteligente por la IA (el Agente)** mediante Integración y Entrega Continua (CI/CD):
 
-```bash
-.venv/bin/python tools/package_mac.py
-```
-
-*   **Linux:** Generará el ejecutable binario nativo (ELF) en `dist/theia-player`.
-*   **macOS:** Generará el ejecutable binario nativo (Mach-O) en `dist/theia-player` (compilado de forma nativa para Apple Silicon o Intel según la arquitectura de la Mac que lo compile).
-
-*Nota: El script de empaquetado instala automáticamente PyInstaller de forma asilada en tu venv de desarrollo, compila reuniendo todos los sub-paquetes locales (`theiaplayer` y `ricekit`) y las hojas de estilo estáticas de Textual (`--collect-data textual`), y limpia todos los archivos temporales de compilación al finalizar.*
+1.  **Versionado Semántico (SemVer):** Al completarse un hito estable de desarrollo, la versión del código se incrementa en `theiaplayer/__init__.py` (variable `__version__`) y se sincroniza en `pyproject.toml`.
+2.  **Etiquetas de Git (Tags):** La IA crea y empuja de forma local y remota la etiqueta correspondiente (ej. `v1.0.0`) de forma directa:
+    ```bash
+    git tag -a v1.0.0 -m "Release v1.0.0: first stable production release"
+    git push origin v1.0.0
+    ```
+3.  **Compilación en la Nube (GitHub Actions):** El archivo `.github/workflows/release.yaml` se ejecuta de forma asíncrona ante el push de cualquier tag `v*`, aprovisionando runners de Linux y macOS para compilar los ejecutables nativos mediante PyInstaller:
+    *   **Linux (amd64):** Binario autocontenido nativo ELF `theia-player-linux-amd64`.
+    *   **macOS (arm64):** Binario autocontenido nativo Mach-O `theia-player-macos-arm64` (optimizado para Apple Silicon).
+4.  **Generación de Releases:** Al finalizar con éxito el build, el pipeline publica automáticamente la Release en tu GitHub y le adjunta de forma segura ambos binarios para su descarga instantánea.
 
 ## Actualizar desde upstream
 
