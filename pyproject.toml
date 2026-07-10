@@ -28,10 +28,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mpris   = ["dbus-python"]
+mpris   = ["dbus-python; sys_platform != 'darwin'"]
 discord = ["pypresence"]
-mac     = ["pyobjc-framework-MediaPlayer"]
-full    = ["dbus-python", "pypresence", "pyobjc-framework-MediaPlayer; sys_platform == 'darwin'"]
+mac     = ["pyobjc-framework-MediaPlayer; sys_platform == 'darwin'"]
+full    = [
+    "dbus-python; sys_platform != 'darwin'",
+    "pypresence",
+    "pyobjc-framework-MediaPlayer; sys_platform == 'darwin'"
+]
 
 [project.urls]
 Homepage = "https://github.com/rodmera/theia-player"
