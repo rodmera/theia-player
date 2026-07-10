@@ -204,12 +204,12 @@ class SubsonicClient:
             raise SubsonicError("share URL is empty")
         return url
 
-    async def get_lyrics(self, song_id: str) -> list[str]:
-        """Return lyric lines. Tries getLyricsBySongId first, then getLyrics."""
+    async def get_lyrics(self, song_id: str) -> list[dict]:
+        """Return structured lyric lines. Tries getLyricsBySongId first, then getLyrics."""
         try:
             body = await self._get("getLyricsBySongId", id=song_id)
             for entry in body.get("lyricsList", {}).get("structuredLyrics", []):
-                lines = [l.get("value", "") for l in entry.get("line", [])]
+                lines = [{"start": l.get("start"), "value": l.get("value", "")} for l in entry.get("line", [])]
                 if lines:
                     return lines
         except Exception:
@@ -217,7 +217,9 @@ class SubsonicClient:
         try:
             body = await self._get("getLyrics", id=song_id)
             text = body.get("lyrics", {}).get("value", "")
-            return text.splitlines() if text else []
+            if text:
+                return [{"start": None, "value": l} for l in text.splitlines()]
+            return []
         except Exception:
             return []
 

@@ -136,6 +136,10 @@ class TheIAPlayerApp(KitApp):
         Binding("T", "change_theme", show=False),
         Binding("question_mark", "help", "help"),
         Binding("N", "toggle_notifications", "silent", show=True),
+        Binding("P", "toggle_private_mode", "private", show=True),
+        Binding("alt+a", "filter_albums", "albums", show=False),
+        Binding("alt+s", "filter_singles", "singles/EPs", show=False),
+        Binding("alt+o", "filter_all", "all releases", show=False),
         Binding("q", "quit", "quit"),
     ]
 
@@ -190,6 +194,15 @@ class TheIAPlayerApp(KitApp):
         self._mutations = 0
         self._last_persist = 0.0
         self._queue_scrolled_to = -2
+
+        # new features bookkeeping
+        self.private_mode: bool = False
+        self.autoplay_enabled: bool = bool(_pcfg.get("autoplay", True))
+        self._autoplay_loading: bool = False
+        self.artist_release_filter: str = "all"
+        self._current_artist_albums: list[Album] = []
+        self._current_artist_songs: list[Song] = []
+        self._current_artist_name: str = ""
 
     # ── layout ────────────────────────────────────────────────────────
     def compose(self):
@@ -327,9 +340,11 @@ class TheIAPlayerApp(KitApp):
         if self.client is None:
             return
         host = self.client.server.split("://", 1)[-1]
-        self.query_one("#status", Static).update(
-            Text(f"{self.client.username}@{host}", style=palette.dim)
-        )
+        text = Text()
+        if getattr(self, "private_mode", False):
+            text.append("[Private] ", style="bold #ff007f")
+        text.append(f"{self.client.username}@{host}", style=palette.dim)
+        self.query_one("#status", Static).update(text)
 
     # ── the heartbeat (all constant animation) ────────────────────────
     def _heartbeat(self) -> None:
@@ -339,6 +354,9 @@ class TheIAPlayerApp(KitApp):
             if self.player is not None:
                 now.set_playing(self.player.active and not self.player.paused)
                 now.set_class(self.player.active, "playing")
+                from theiaplayer.screens import LyricsModal
+                if isinstance(self.screen, LyricsModal):
+                    self.screen.update_time(self.player.position)
             now.tick()
             busy = any(
                 not w.is_finished
@@ -507,10 +525,16 @@ class TheIAPlayerApp(KitApp):
         title = f"artist · {artist.name}"
         self.view = f"artist:{artist.id}"
         self._highlight_view(None)
+        self.artist_release_filter = "all"
+        self._current_artist_name = artist.name
+        self._current_artist_albums = []
+        self._current_artist_songs = []
         cache_key = f"artist-songs-{artist.id}"
         cached = self.dirs.read_cache(cache_key)
         if cached:
-            self._show_songs([Song.from_dict(s) for s in cached.get("songs", [])], title)
+            self._current_artist_songs = [Song.from_dict(s) for s in cached.get("songs", [])]
+            self._current_artist_albums = [Album.from_dict(a) for a in cached.get("albums", [])]
+            self._filter_and_show_artist_songs()
         try:
             albums = await self.client.get_artist_albums(artist.id)
             results = await asyncio.gather(
@@ -524,8 +548,13 @@ class TheIAPlayerApp(KitApp):
         for r in results:
             if isinstance(r, list):
                 songs.extend(r)
-        self.dirs.write_cache(cache_key, {"songs": [s.to_dict() for s in songs]})
-        self._show_songs(songs, title)
+        self._current_artist_albums = albums
+        self._current_artist_songs = songs
+        self.dirs.write_cache(cache_key, {
+            "songs": [s.to_dict() for s in songs],
+            "albums": [a.to_dict() for a in albums]
+        })
+        self._filter_and_show_artist_songs()
         self.query_one("#tracks-list", ClickList).focus()
 
     @work(exclusive=True, group="lib")
@@ -666,6 +695,7 @@ class TheIAPlayerApp(KitApp):
             self.mpris.set_playing(True)
         self._send_notification(song)
         self._update_discord(song)
+        self._check_autoplay()
 
     def _refresh_song_markers(self) -> None:
         """Re-render the tracks pane so the ♪ marker follows the player."""
@@ -745,6 +775,77 @@ class TheIAPlayerApp(KitApp):
         self._notify_on = not self._notify_on
         self.dirs.save_state({"desktop_notifications": self._notify_on})
         self.notify(f"notifications {'on' if self._notify_on else 'off'}", timeout=2)
+
+    def action_toggle_private_mode(self) -> None:
+        self.private_mode = not self.private_mode
+        self._render_status()
+        self.notify(f"private mode {'on' if self.private_mode else 'off'}", timeout=2)
+
+    def _check_autoplay(self) -> None:
+        if not getattr(self, "autoplay_enabled", True):
+            return
+        if self.client is None:
+            return
+        remaining = len(self.queue.songs) - (self.queue.index + 1)
+        if remaining <= 1:
+            if getattr(self, "_autoplay_loading", False):
+                return
+            self._autoplay_loading = True
+            self._fetch_autoplay_songs()
+
+    @work(exclusive=True, group="lib")
+    async def _fetch_autoplay_songs(self) -> None:
+        try:
+            songs = await self.client.get_random_songs(size=15)
+            f = self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS)
+            songs = playerconfig.apply_filters(songs, f)
+            if songs:
+                self.queue.add(songs)
+                self._render_queue()
+                self._persist_queue()
+                self.notify("Auto DJ: 15 songs enqueued", timeout=2)
+        except Exception:
+            pass
+        finally:
+            self._autoplay_loading = False
+
+    def _filter_and_show_artist_songs(self) -> None:
+        if not self.view.startswith("artist:"):
+            return
+        filtr = getattr(self, "artist_release_filter", "all")
+        if filtr == "album":
+            allowed_albums = {a.id for a in self._current_artist_albums if a.release_type == "album"}
+            title_suffix = " · albums"
+        elif filtr == "single":
+            allowed_albums = {a.id for a in self._current_artist_albums if a.release_type in ["single", "ep"]}
+            title_suffix = " · singles & EPs"
+        elif filtr == "compilation":
+            allowed_albums = {a.id for a in self._current_artist_albums if a.release_type == "compilation"}
+            title_suffix = " · compilations"
+        else:
+            allowed_albums = {a.id for a in self._current_artist_albums}
+            title_suffix = " · all releases"
+        filtered_songs = [s for s in self._current_artist_songs if s.album_id in allowed_albums]
+        title = f"artist · {self._current_artist_name}{title_suffix}"
+        self._show_songs(filtered_songs, title)
+
+    def action_filter_albums(self) -> None:
+        if self.view.startswith("artist:"):
+            self.artist_release_filter = "album"
+            self._filter_and_show_artist_songs()
+            self.notify("Filter: Albums", timeout=1.5)
+
+    def action_filter_singles(self) -> None:
+        if self.view.startswith("artist:"):
+            self.artist_release_filter = "single"
+            self._filter_and_show_artist_songs()
+            self.notify("Filter: Singles & EPs", timeout=1.5)
+
+    def action_filter_all(self) -> None:
+        if self.view.startswith("artist:"):
+            self.artist_release_filter = "all"
+            self._filter_and_show_artist_songs()
+            self.notify("Filter: All Releases", timeout=1.5)
 
     # ── discord ───────────────────────────────────────────────────────
     def _update_discord(self, song: Song | None) -> None:
@@ -1159,6 +1260,8 @@ class TheIAPlayerApp(KitApp):
 
     @work(group="mutate")
     async def _scrobble(self, song_id: str, submission: bool) -> None:
+        if getattr(self, "private_mode", False):
+            return
         try:
             await self.client.scrobble(song_id, submission)
         except Exception:

@@ -47,6 +47,7 @@ class Album:
     duration: int = 0
     cover_art: str | None = None
     starred: bool = False
+    release_type: str = "album"
 
     @classmethod
     def from_api(cls, d: dict) -> "Album":
@@ -60,6 +61,7 @@ class Album:
             duration=int(d.get("duration", 0) or 0),
             cover_art=d.get("coverArt"),
             starred=bool(d.get("starred")),
+            release_type=d.get("releaseType", "album"),
         )
 
     def to_dict(self) -> dict:

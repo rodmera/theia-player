@@ -80,6 +80,7 @@ DEFAULTS: dict = {
     "desktop_notifications": True,
     "discord_rich_presence": False,
     "discord_app_id":       "",        # get one at discord.com/developers/applications
+    "autoplay":             True,
     # sub-tables (merged separately below)
     "keybinds": DEFAULT_KEYBINDS,
     "filters":  DEFAULT_FILTERS,

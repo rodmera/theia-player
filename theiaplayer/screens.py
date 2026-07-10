@@ -223,13 +223,28 @@ class LyricsModal(ModalScreen):
     LyricsModal #lyrics-title { margin-bottom: 1; }
     LyricsModal VerticalScroll { height: 1fr; }
     LyricsModal VerticalScroll Static { background: $kit-modal-bg; }
+    LyricsModal .lyrics-line {
+        height: auto;
+        content-align: center middle;
+        text-align: center;
+        padding: 0 1;
+        color: $text-disabled;
+        transition: color 150ms;
+    }
+    LyricsModal .lyrics-line.active {
+        color: #00ffcc;
+        text-style: bold;
+    }
     """
 
-    def __init__(self, song_title: str, artist: str, lines: list[str]) -> None:
+    def __init__(self, song_title: str, artist: str, lines: list[dict]) -> None:
         super().__init__()
         self._song_title = song_title
         self._artist = artist
         self._lines = lines
+        self._is_synced = any(l.get("start") is not None for l in self._lines)
+        self._line_widgets: list[Static] = []
+        self._current_active_idx = -1
 
     def compose(self) -> ComposeResult:
         with Vertical(id="lyrics-box"):
@@ -238,12 +253,46 @@ class LyricsModal(ModalScreen):
             header.append(f"  {self._artist}", style=palette.dim)
             yield Static(header, id="lyrics-title")
             with VerticalScroll(id="lyrics-scroll"):
+                self._line_widgets = []
                 for line in self._lines:
-                    yield Static(line or " ")
+                    text = line.get("value", "")
+                    widget = Static(text or " ", classes="lyrics-line")
+                    self._line_widgets.append(widget)
+                    yield widget
 
     def on_mount(self) -> None:
         pop_in(self.query_one("#lyrics-box"))
         settle_pop_in(self, "#lyrics-box")
+
+    def update_time(self, time_sec: float) -> None:
+        """Update synchronized lyrics scroll position based on player time (seconds)."""
+        if not self._is_synced or not self._line_widgets:
+            return
+        
+        time_ms = time_sec * 1000
+        active_idx = -1
+        for i, line in enumerate(self._lines):
+            start = line.get("start")
+            if start is not None and start <= time_ms:
+                active_idx = i
+            else:
+                break
+        
+        if active_idx != self._current_active_idx and active_idx >= 0:
+            # Desmarcar anterior
+            if self._current_active_idx >= 0 and self._current_active_idx < len(self._line_widgets):
+                self._line_widgets[self._current_active_idx].remove_class("active")
+            
+            # Destacar nuevo
+            self._line_widgets[active_idx].add_class("active")
+            self._current_active_idx = active_idx
+            
+            # Scroll suave para centrar
+            try:
+                scroll = self.query_one("#lyrics-scroll", VerticalScroll)
+                scroll.scroll_to_widget(self._line_widgets[active_idx], animate=True)
+            except Exception:
+                pass
 
     def action_cancel(self) -> None:
         self.dismiss(None)
