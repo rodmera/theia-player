@@ -173,19 +173,19 @@ class Player:
 
     def get_audio_devices(self) -> list[dict]:
         try:
-            return self._m["audio-device-list"] or []
+            return self._m.audio_device_list or []
         except Exception:
             return []
 
     def set_audio_device(self, name: str) -> None:
         try:
-            self._m["audio-device"] = name
+            self._m.audio_device = name
         except Exception:
             pass
 
     def get_current_audio_device(self) -> str:
         try:
-            return self._m["audio-device"] or "auto"
+            return self._m.audio_device or "auto"
         except Exception:
             return "auto"
 
