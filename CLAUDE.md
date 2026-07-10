@@ -147,7 +147,10 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Queue reorder | `playqueue.py`, `app.py` | `ctrl+↑`/`ctrl+↓` en queue panel |
 | Share link | `api.py`, `app.py` | `S` — llama `createShare`, copia al clipboard |
 | Rating 1-5 | `api.py`, `models.py`, `app.py` | Teclas `1`-`5` en tracks panel; `0` borra |
-| Letras (lyrics) | `api.py`, `screens.py`, `app.py` | `L` — overlay scrollable, j/k para navegar |
+| Letras Sincronizadas (Lyrics) | `api.py`, `screens.py`, `app.py` | `L` — Detección automática de formato LRC (sincronizado por milisegundos). Resalta y desplaza verticalmente (scroll suave) en tiempo real siguiendo la reproducción real de mpv. |
+| Modo de Escucha Privado | `app.py`, `api.py` | `P` — Toggle global. Desactiva temporalmente el scrobbling al servidor Navidrome y muestra el indicador visual `[Private]` en magenta en la barra de estado. |
+| Auto DJ (Infinite Autoplay) | `app.py`, `config.py` | Cuando la cola tiene <= 1 canción restante, realiza una precarga asíncrona de 15 canciones aleatorias del servidor. Configurable en player.toml. |
+| Filtro de Discografía por Release Type | `app.py`, `models.py` | `alt+a` (Álbumes), `alt+s` (Singles & EPs), `alt+o` (Todo) — Filtra en memoria y en caliente la discografía del artista en la vista de artistas sin latencia de red. |
 | Go to album / artist | `app.py` | `e` / `E` desde cualquier track |
 | Multi-selección | `app.py` | `v` toggle; `a`/`A`/`f` operan sobre todos |
 | Filtros de biblioteca | `config.py`, `app.py` | `[filters]` en player.toml |
