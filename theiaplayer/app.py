@@ -13,6 +13,7 @@ progress pulse, marquee, spinners); each tick repaints only a few cells.
 from __future__ import annotations
 
 import asyncio
+import pathlib
 import random
 import subprocess
 
@@ -42,6 +43,7 @@ from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, Searc
 from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
 
 VIEWS = [
+    ("home", "home"),
     ("all-songs", "all tracks"),
     ("newest", "recently added"),
     ("recent", "recently played"),
@@ -137,6 +139,7 @@ class TheIAPlayerApp(KitApp):
         Binding("question_mark", "help", "help"),
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
+        Binding("ctrl+s", "switch_server", "switch server", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -170,6 +173,9 @@ class TheIAPlayerApp(KitApp):
     def __init__(self, client: SubsonicClient | None = None, ao: str | None = None) -> None:
         # Load config BEFORE super().__init__() so we can patch class BINDINGS
         self.dirs = AppDirs("theia-player")
+        self._audio_cache_dir = self.dirs.cache_dir / "audio"
+        self._audio_cache_dir.mkdir(parents=True, exist_ok=True)
+        self._active_downloads: set[str] = set()
         _pcfg = playerconfig.load(self.dirs.config_file.parent)
         playerconfig.write_default(self.dirs.config_file.parent)
         TheIAPlayerApp.BINDINGS = playerconfig.build_bindings(_pcfg.get("keybinds", {}))
@@ -382,19 +388,37 @@ class TheIAPlayerApp(KitApp):
         options.append(Option(Text(" tracks", style=f"bold {palette.dim}"), disabled=True))
         for view_id, label in VIEWS:
             row = Text(no_wrap=True, overflow="ellipsis")
-            glyph, color = ("", palette.peach) if view_id == "shuffle-all" else ("◍", palette.mauve)
-            if view_id == "starred":
+            glyph, color = ("◍", palette.mauve)
+            if view_id == "home":
+                glyph, color = "🏠", palette.peach
+            elif view_id == "starred":
                 glyph, color = icons.STAR, palette.yellow
+            elif view_id == "shuffle-all":
+                glyph, color = "◍", palette.peach
             row.append(f"{glyph} ", style=color)
             row.append(label, style=palette.text)
             options.append(Option(row, id=view_id))
         options.append(Option(Text(" "), disabled=True))
         options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
+        current_folder = None
         for p in self._playlists:
             row = Text(no_wrap=True, overflow="ellipsis")
-            row.append(f"{icons.LIST} ", style=palette.lav)
-            row.append(p.name, style=palette.text)
-            row.append(f" {p.song_count}♪", style=palette.vfaint)
+            if "/" in p.name:
+                folder, name = p.name.split("/", 1)
+                if folder != current_folder:
+                    current_folder = folder
+                    folder_row = Text(no_wrap=True, overflow="ellipsis")
+                    folder_row.append(f" 📂 {folder}", style=f"bold {palette.peach}")
+                    options.append(Option(folder_row, disabled=True))
+                row.append("   ", style=palette.vfaint)
+                row.append(f"{icons.LIST} ", style=palette.lav)
+                row.append(name, style=palette.text)
+                row.append(f" {p.song_count}♪", style=palette.vfaint)
+            else:
+                current_folder = None
+                row.append(f"{icons.LIST} ", style=palette.lav)
+                row.append(p.name, style=palette.text)
+                row.append(f" {p.song_count}♪", style=palette.vfaint)
             options.append(Option(row, id=f"pl:{p.id}"))
         new_row = Text(no_wrap=True)
         new_row.append(f"{icons.PLUS} ", style=palette.green)
@@ -486,7 +510,32 @@ class TheIAPlayerApp(KitApp):
         await asyncio.sleep(0.12)  # superseded while the cursor is moving
         title = self._tracks_title(view_id)
 
-        if view_id in ("all-songs", "shuffle-all"):
+        if view_id == "home":
+            cache_key = "home-mix"
+
+            async def fetch():
+                try:
+                    res = await asyncio.gather(
+                        self.client.get_random_songs(size=10),
+                        self.client.get_songs_by_albums("newest"),
+                        self.client.get_songs_by_albums("frequent"),
+                        return_exceptions=True
+                    )
+                    randoms = res[0] if isinstance(res[0], list) else []
+                    newest = res[1] if isinstance(res[1], list) else []
+                    frequent = res[2] if isinstance(res[2], list) else []
+                    newest = newest[:10]
+                    frequent = frequent[:10]
+                    seen_ids = set()
+                    mixed_songs = []
+                    for song in randoms + frequent + newest:
+                        if song.id not in seen_ids:
+                            seen_ids.add(song.id)
+                            mixed_songs.append(song)
+                    return mixed_songs
+                except Exception:
+                    return []
+        elif view_id in ("all-songs", "shuffle-all"):
             cache_key, fetch = "all-songs", self.client.get_all_songs
         elif view_id in ("newest", "recent", "frequent"):
             cache_key = f"songview-{view_id}"
@@ -679,7 +728,15 @@ class TheIAPlayerApp(KitApp):
             if self.mpris is not None:
                 self.mpris.set_stopped()
             return
-        self.player.play(self.client.stream_url(song.id), start=resume_at)
+        
+        # Audio cache implementation
+        audio_path = self._get_cached_audio_path(song)
+        if audio_path and audio_path.exists():
+            self.player.play(str(audio_path), start=resume_at)
+        else:
+            self.player.play(self.client.stream_url(song.id), start=resume_at)
+            self._cache_audio_async(song)
+            
         now.set_song(song)
         now.set_progress(resume_at, song.duration)
         self._scrobbled = False
@@ -780,6 +837,43 @@ class TheIAPlayerApp(KitApp):
         self.private_mode = not self.private_mode
         self._render_status()
         self.notify(f"private mode {'on' if self.private_mode else 'off'}", timeout=2)
+
+    def action_switch_server(self) -> None:
+        config = self.dirs.load_config()
+        profiles = config.get("profiles", {})
+        if not profiles:
+            self.notify("No alternative server profiles found in config.toml", severity="warning", timeout=4)
+            return
+        active_profile = self.dirs.load_state().get("active_profile", "default")
+        from theiaplayer.screens import ServerSwitcherModal
+        self.push_screen(
+            ServerSwitcherModal(list(profiles.keys()), active_profile),
+            self._on_server_selected
+        )
+
+    def _on_server_selected(self, selected: str | None) -> None:
+        if selected:
+            config = self.dirs.load_config()
+            profiles = config.get("profiles", {})
+            if selected in profiles:
+                self.dirs.save_state({"active_profile": selected})
+                self.notify(f"Switching to profile: {selected}...", timeout=2)
+                self._reconnect_client(profiles[selected])
+
+    def _reconnect_client(self, creds: dict) -> None:
+        try:
+            from theiaplayer.api import SubsonicClient
+            self.client = SubsonicClient(
+                creds["server"], creds["username"], creds["token"], creds["salt"],
+                art_dir=self.dirs.cache_dir / "art",
+            )
+            self._render_status()
+            self.queue.clear()
+            self._load_playlists()
+            self._load_view("home")
+            self.notify("Server connected successfully!", timeout=2)
+        except Exception as e:
+            self.notify(f"Connection failed: {e}", severity="error", timeout=4)
 
     def _check_autoplay(self) -> None:
         if not getattr(self, "autoplay_enabled", True):
@@ -1400,6 +1494,69 @@ class TheIAPlayerApp(KitApp):
             except Exception:
                 pass
         self.exit()
+
+    def _get_cached_audio_path(self, song: Song) -> pathlib.Path:
+        import pathlib
+        return self._audio_cache_dir / f"{song.id}.{song.suffix or 'mp3'}"
+
+    def _cache_audio_async(self, song: Song) -> None:
+        url = self.client.stream_url(song.id) if self.client else ""
+        if url:
+            self._download_song_to_cache(song, url)
+
+    @work(group="cache_download")
+    async def _download_song_to_cache(self, song: Song, url: str) -> None:
+        if not hasattr(self, "_active_downloads"):
+            self._active_downloads = set()
+        if song.id in self._active_downloads:
+            return
+        self._active_downloads.add(song.id)
+        try:
+            dest = self._get_cached_audio_path(song)
+            if dest.exists():
+                return
+            import httpx
+            tmp_dest = dest.with_suffix(".tmp")
+            self._rotate_audio_cache_if_needed()
+            async with httpx.AsyncClient() as client:
+                async with client.stream("GET", url) as response:
+                    if response.status_code == 200:
+                        with open(tmp_dest, "wb") as f:
+                            async for chunk in response.aiter_bytes():
+                                f.write(chunk)
+                        if tmp_dest.exists():
+                            tmp_dest.rename(dest)
+        except Exception:
+            pass
+        finally:
+            self._active_downloads.discard(song.id)
+
+    def _rotate_audio_cache_if_needed(self) -> None:
+        try:
+            limit = float(self._pcfg.get("cache_size_gb", 2.0)) * 1024 * 1024 * 1024
+            dir_path = self._audio_cache_dir
+            if not dir_path.exists():
+                return
+            files = [
+                (f, f.stat())
+                for f in dir_path.iterdir()
+                if f.is_file() and not f.name.endswith(".tmp")
+            ]
+            total_size = sum(stat.st_size for _, stat in files)
+            if total_size <= limit:
+                return
+            files.sort(key=lambda x: x[1].st_atime)
+            target_size = limit * 0.8
+            for f, stat in files:
+                try:
+                    f.unlink()
+                    total_size -= stat.st_size
+                    if total_size <= target_size:
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 def watchdog_thread() -> None:

@@ -451,3 +451,55 @@ class SearchModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class ServerSwitcherModal(ModalScreen):
+    """Modal to switch between different server profiles."""
+
+    DEFAULT_CSS = """
+    ServerSwitcherModal { align: center middle; background: $kit-overlay; }
+    ServerSwitcherModal #switcher-box {
+        width: 48; height: auto; max-height: 15;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    ServerSwitcherModal #switcher-title { margin-bottom: 1; }
+    ServerSwitcherModal OptionList { height: auto; max-height: 8; border: none; }
+    """
+
+    def __init__(self, profiles: list[str], active_profile: str) -> None:
+        super().__init__()
+        self._profiles = profiles
+        self._active_profile = active_profile
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="switcher-box"):
+            yield Static("Select Server Profile:", id="switcher-title", style=f"bold {palette.sub}")
+            options = []
+            for p in self._profiles:
+                label = f"● {p}" if p == self._active_profile else f"  {p}"
+                options.append(Option(label, id=p))
+            yield OptionList(*options, id="switcher-list")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#switcher-box"))
+        settle_pop_in(self, "#switcher-box")
+        ol = self.query_one("#switcher-list", OptionList)
+        ol.focus()
+        try:
+            idx = self._profiles.index(self._active_profile)
+            ol.highlighted = idx
+        except ValueError:
+            pass
+
+    @on(OptionList.OptionSelected)
+    def on_select(self, event: OptionList.OptionSelected) -> None:
+        if event.option.id:
+            self.dismiss(event.option.id)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+    ]

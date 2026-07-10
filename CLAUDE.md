@@ -151,6 +151,10 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Modo de Escucha Privado | `app.py`, `api.py` | `P` — Toggle global. Desactiva temporalmente el scrobbling al servidor Navidrome y muestra el indicador visual `[Private]` en magenta en la barra de estado. |
 | Auto DJ (Infinite Autoplay) | `app.py`, `config.py` | Cuando la cola tiene <= 1 canción restante, realiza una precarga asíncrona de 15 canciones aleatorias del servidor. Configurable en player.toml. |
 | Filtro de Discografía por Release Type | `app.py`, `models.py` | `alt+a` (Álbumes), `alt+s` (Singles & EPs), `alt+o` (Todo) — Filtra en memoria y en caliente la discografía del artista en la vista de artistas sin latencia de red. |
+| Caché Offline de Audio (Offline Audio Cache) | `app.py`, `config.py` | Descarga de fondo en chunks asíncronos (`httpx`) de archivos de música a `~/.cache/theia-player/audio/` y priorización local ante reproducción; rotación inteligente LRU por cuota de disco configurable. |
+| Vista de Inicio Inteligente (Home Dashboard) | `app.py` | Vista `home` con nodo `🏠 home` en sidebar que reúne recomendaciones, pistas frecuentes e incorporaciones nuevas en un solo mix dinámico sin duplicados. |
+| Soporte Multi-Servidor (Profile Switcher) | `app.py`, `screens.py` | `ctrl+s` — Modal interactivo de cambio de servidor en caliente con reconexión de cliente Subsonic y flushing seguro de cola para evitar cruce de tracks. |
+| Agrupación de Playlists en Carpetas | `app.py` | Detección de `/` en los nombres de playlists en el sidebar para agruparlas cosméticamente bajo cabeceras destacadas e indentación visual. |
 | Go to album / artist | `app.py` | `e` / `E` desde cualquier track |
 | Multi-selección | `app.py` | `v` toggle; `a`/`A`/`f` operan sobre todos |
 | Filtros de biblioteca | `config.py`, `app.py` | `[filters]` en player.toml |
