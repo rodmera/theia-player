@@ -65,17 +65,28 @@ brew install mpv
 # windows: put libmpv-2.dll on PATH — https://mpv.io/installation/
 ```
 
-then
+### 🚀 El camino más rápido (Recomendado con uv)
+
+Si tienes `uv` instalado, puedes instalarlo de forma limpia, aislada e instantánea en tu PATH con un solo comando:
 
 ```sh
+# macOS (con soporte para teclas físicas de Apple y Centro de Control integrado)
+uv tool install --with "pyobjc-framework-MediaPlayer" git+https://github.com/rodmera/theia-player
+
+# Linux / General
 uv tool install git+https://github.com/rodmera/theia-player
-theia-player
 ```
 
-First run asks for your server, username and password; the password is never
-stored — only the salted token (chmod 600, saved under `~/.config/theia-player/`). Works with Navidrome and any
-Subsonic-compatible server. Try it against the public demo:
-`https://demo.navidrome.org` / `demo` / `demo`.
+*(O de forma efímera para probarlo en caliente sin instalar nada: `uvx --with "pyobjc-framework-MediaPlayer" --from "git+https://github.com/rodmera/theia-player" theia-player`)*
+
+### Compilación Standalone (Opcional)
+
+Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de Unix autocontenido** (como `fzf` o `ripgrep`), de modo que puedas compartirlo y correrlo en cualquier máquina destino sin depender de que tenga instalado Python o dependencias, ejecuta:
+
+```sh
+.venv/bin/python tools/package_mac.py
+```
+*Generará el ejecutable binario en `dist/theia-player` listo para distribuir.*
 
 ## keys
 
@@ -91,13 +102,14 @@ Subsonic-compatible server. Try it against the public demo:
 | `p` | add track to a playlist |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
+| `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |
 | `/` | search |
 | `h` `l` `j` `k` | move around, vim-style |
 | `t` / `T` | themes |
 
 ## the suite
 
-- [**ricekit**](https://github.com/Gheat1/ricekit) — the design system this is built on
+- [**ricekit**](https://github.com/rodmera/theia-player/tree/main/ricekit) — El micro-paquete de diseño embebido e integrado localmente en este repositorio para simplificar la instalación y el desarrollo rápido.
 - [**ltui**](https://github.com/Gheat1/ltui) — a fast, beautiful TUI for Linear
 
 ## license
