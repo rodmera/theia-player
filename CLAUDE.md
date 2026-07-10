@@ -156,6 +156,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Soporte Multi-Servidor (Profile Switcher) | `app.py`, `screens.py` | `ctrl+s` — Modal interactivo de cambio de servidor en caliente con reconexión de cliente Subsonic y flushing seguro de cola para evitar cruce de tracks. |
 | Agrupación de Playlists en Carpetas | `app.py` | Detección de `/` en los nombres de playlists en el sidebar para agruparlas cosméticamente bajo cabeceras destacadas e indentación visual. |
 | Selección de Dispositivo de Audio (Device Switcher) | `app.py`, `screens.py`, `player.py` | `ctrl+d` — Modal interactivo que consulta `audio-device-list` de `mpv` en tiempo real y te permite alternar en caliente y en tiempo real tu dispositivo de salida de audio (parlante, DAC BT, audífonos Jack); persiste la preferencia en estado. |
+| Normalizador Inteligente de Teclas (Keybind Normalizer) | `config.py` | Detecta y traduce automáticamente y en caliente las subtablas de configuración anidadas de la app de Go (`theia-subtui`) a las acciones planas equivalentes de Python, permitiéndote usar tu configuración preferida (`player.toml`) de forma transparente y sin colisiones. |
 | Go to album / artist | `app.py` | `e` / `E` desde cualquier track |
 | Multi-selección | `app.py` | `v` toggle; `a`/`A`/`f` operan sobre todos |
 | Filtros de biblioteca | `config.py`, `app.py` | `[filters]` en player.toml |

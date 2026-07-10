@@ -89,6 +89,45 @@ DEFAULTS: dict = {
 
 # ── loader ────────────────────────────────────────────────────────────────────
 
+def _normalize_keybinds(overrides: dict) -> dict:
+    """Normalize legacy nested keybinds from Go player (theia-subtui) to flat Python actions."""
+    if "keybinds" not in overrides or not isinstance(overrides["keybinds"], dict):
+        return overrides
+    kb_data = overrides["keybinds"]
+    has_subtables = any(isinstance(v, dict) for v in kb_data.values())
+    if not has_subtables:
+        return overrides
+    MAPPING = {
+        "play_pause": "play_pause",
+        "next": "next_track",
+        "prev": "prev_track",
+        "shuffle": "shuffle",
+        "loop": "repeat",
+        "volume_up": "vol_up",
+        "volume_down": "vol_down",
+        "toggle_favorite": "star",
+        "create_share_link": "share",
+        "toggle_notifications": "notifications_toggle",
+        "remove_from_queue": "queue_remove",
+        "clear_queue": "queue_clear",
+        "move_up": "queue_move_up",
+        "move_down": "queue_move_down",
+        "add_to_playlist": "playlist_add",
+        "go_to_album": "go_to_album",
+        "go_to_artist": "go_to_artist",
+        "help": "help",
+        "quit": "quit",
+    }
+    flat_keybinds = {**DEFAULT_KEYBINDS}
+    for subtable_name, subtable in kb_data.items():
+        if isinstance(subtable, dict):
+            for go_action, keys in subtable.items():
+                if go_action in MAPPING and isinstance(keys, list):
+                    flat_keybinds[MAPPING[go_action]] = ",".join(keys)
+    overrides["keybinds"] = flat_keybinds
+    return overrides
+
+
 def load(config_dir: Path) -> dict:
     """Return merged config: defaults + whatever player.toml overrides."""
     cfg: dict = {
@@ -100,6 +139,7 @@ def load(config_dir: Path) -> dict:
         return cfg
     try:
         overrides = tomllib.loads(path.read_text())
+        overrides = _normalize_keybinds(overrides)
     except Exception:
         return cfg
     for k, v in overrides.items():
