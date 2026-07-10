@@ -173,7 +173,19 @@ class Player:
 
     def get_audio_devices(self) -> list[dict]:
         try:
-            return self._m.audio_device_list or []
+            raw_devices = self._m.audio_device_list or []
+            filtered = []
+            seen_descs = set()
+            for d in raw_devices:
+                name = d.get("name", "")
+                desc = d.get("description", "")
+                if name.startswith("alsa/"):
+                    continue
+                if any(name.startswith(p) for p in ["auto", "pipewire", "pulse", "coreaudio", "wasapi", "alsa"]):
+                    if desc not in seen_descs:
+                        seen_descs.add(desc)
+                        filtered.append(d)
+            return filtered if filtered else raw_devices
         except Exception:
             return []
 
