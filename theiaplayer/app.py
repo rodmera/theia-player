@@ -385,7 +385,6 @@ class TheIAPlayerApp(KitApp):
         if ol.highlighted is not None:
             highlighted_id = ol.get_option_at_index(ol.highlighted).id
         options: list[Option] = []
-        options.append(Option(Text(" tracks", style=f"bold {palette.dim}"), disabled=True))
         for view_id, label in VIEWS:
             row = Text(no_wrap=True, overflow="ellipsis")
             glyph, color = ("◍", palette.mauve)
