@@ -48,6 +48,7 @@ class Player:
         gapless: str = "yes",
         replaygain_preamp: float = 0.0,
         replaygain_fallback: float = -6.0,
+        audio_exclusive: bool = False,
     ) -> None:
         self._on_position = on_position
         self._on_track_end = on_track_end
@@ -66,6 +67,7 @@ class Player:
             gapless_audio=gapless,
             replaygain_preamp=replaygain_preamp,
             replaygain_fallback=replaygain_fallback,
+            audio_exclusive=audio_exclusive,
         )
         if ao:
             opts["ao"] = ao
@@ -179,7 +181,7 @@ class Player:
             for d in raw_devices:
                 name = d.get("name", "")
                 desc = d.get("description", "")
-                if name.startswith("alsa/"):
+                if name.startswith("alsa/") and not any(name.startswith(p) for p in ["alsa/hw:", "alsa/plughw:"]):
                     continue
                 if any(name.startswith(p) for p in ["auto", "pipewire", "pulse", "coreaudio", "wasapi", "alsa"]):
                     if desc not in seen_descs:
@@ -268,6 +270,7 @@ def create_player(
     gapless: str = "yes",
     replaygain_preamp: float = 0.0,
     replaygain_fallback: float = -6.0,
+    audio_exclusive: bool = False,
 ):
     if not MPV_AVAILABLE:
         return NullPlayer()
@@ -279,4 +282,5 @@ def create_player(
         gapless=gapless,
         replaygain_preamp=replaygain_preamp,
         replaygain_fallback=replaygain_fallback,
+        audio_exclusive=audio_exclusive,
     )

@@ -260,6 +260,7 @@ class TheIAPlayerApp(KitApp):
             gapless=pcfg["gapless"],
             replaygain_preamp=float(pcfg.get("replaygain_preamp", 0)),
             replaygain_fallback=float(pcfg.get("replaygain_fallback", -6)),
+            audio_exclusive=bool(pcfg.get("audio_exclusive", False)),
         )
         default_vol = pcfg["default_volume"]
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))

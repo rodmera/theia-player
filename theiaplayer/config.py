@@ -81,6 +81,7 @@ DEFAULTS: dict = {
     "discord_rich_presence": False,
     "discord_app_id":       "",        # get one at discord.com/developers/applications
     "autoplay":             True,
+    "audio_exclusive":      False,
     # sub-tables (merged separately below)
     "keybinds": DEFAULT_KEYBINDS,
     "filters":  DEFAULT_FILTERS,
