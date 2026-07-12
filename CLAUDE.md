@@ -5,6 +5,18 @@ Fork de [theia-player](https://github.com/Gheat1/theia-player). TUI music player
 **Repo:** `github.com/rodmera/theia-player`
 **Upstream:** `github.com/Gheat1/theia-player` (remote `upstream`) — hacer `git fetch upstream` para traer cambios futuros
 
+## 🚨 CRITICAL: DEFINICIÓN DE HECHO (DoD) — CHECKLIST MANDATORIO
+**Antes de dar por completada cualquier tarea y declarar "listo", el agente DEBE ejecutar obligatoriamente este checklist en orden:**
+
+1. **Asegurar Calidad Local:** Ejecutar las pruebas unitarias (`.venv/bin/python3 -m pytest`) y el generador headless (`.venv/bin/python3 tools/screenshots.py`) para verificar que no haya regresiones.
+2. **Incrementar Versión (SemVer):** Si hay cambios lógicos o correcciones, incrementar progresivamente la versión en:
+   * `theiaplayer/__init__.py` (variable `__version__`)
+   * `pyproject.toml` (directiva `version = "X.Y.Z"`)
+3. **Actualizar Documentación:** Reflejar cualquier cambio de configuración, comportamiento o comandos nuevos en `README.md`.
+4. **Hacer Commit y Empujar a GitHub (origin/main):** Confirmar todos los cambios con un commit convencional (sin emojis, autoría única de `Rodrigo Mera R. <rodrigo.mera@gmail.com>` y sin ninguna mención a IAs) y hacer `git push origin main`.
+5. **Crear y Empujar Tag Git para CI/CD:** Crear la etiqueta (`git tag -a vX.Y.Z -m "Release vX.Y.Z: ... "`) y subirla al remoto (`git push origin vX.Y.Z`) para disparar el pipeline automático de compilación en GitHub Actions.
+6. **Actualizar Bitácora:** Registrar de forma escueta la intervención en el archivo de coordinación general `~/.openclaw/workspace/memory/shared-log.md`.
+
 ## Requisitos del Sistema (OS Dependencies)
 
 A diferencia de `theia-subtui` (que invoca al reproductor CLI estándar por subproceso), `theia-player` utiliza bindings de C en Python (`python-mpv`) que requieren obligatoriamente de la **biblioteca dinámica compartida** en memoria (`libmpv.so`). Asegúrate de instalar la biblioteca de C del sistema operativo para que la reproducción funcione de forma asíncrona:
