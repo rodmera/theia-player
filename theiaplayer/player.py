@@ -68,8 +68,6 @@ class Player:
             replaygain_preamp=replaygain_preamp,
             replaygain_fallback=replaygain_fallback,
             audio_exclusive=audio_exclusive,
-            pipewire_buffer=150,
-            pulse_buffer=150,
         )
         if ao:
             opts["ao"] = ao
