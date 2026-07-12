@@ -143,6 +143,17 @@ class SubsonicClient:
         body = await self._get("getRandomSongs", size=size)
         return [Song.from_api(s) for s in body.get("randomSongs", {}).get("song", [])]
 
+    async def get_similar_songs(self, song_id: str, size: int = 15) -> list[Song]:
+        """Songs similar to the given track (LastFM-backed in Navidrome). Falls back to random."""
+        try:
+            body = await self._get("getSimilarSongs", id=song_id, count=size)
+            songs = [Song.from_api(s) for s in body.get("similarSongs", {}).get("song", [])]
+            if songs:
+                return songs
+        except Exception:
+            pass
+        return await self.get_random_songs(size=size)
+
     async def get_songs_by_albums(self, list_type: str, albums: int = 15) -> list[Song]:
         """Songs-first view of an album list: flatten the songs of the top N
         albums for `newest` / `recent` / `frequent`, keeping album order."""
@@ -233,6 +244,13 @@ class SubsonicClient:
     async def cover_art(self, cover_id: str, size: int = 1200) -> Path:
         path = self._art_dir / f"{cover_id.replace('/', '_')}-{size}"
         if path.exists() and path.stat().st_size > 0:
+            try:
+                from PIL import Image
+                with Image.open(path) as im:
+                    if im.mode == "CMYK":
+                        im.convert("RGB").save(path, im.format or "JPEG")
+            except Exception:
+                pass
             return path
         resp = await self._http.get(
             f"{self.server}/rest/getCoverArt",
@@ -248,5 +266,12 @@ class SubsonicClient:
         self._art_dir.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".part")
         tmp.write_bytes(resp.content)
+        try:
+            from PIL import Image
+            with Image.open(tmp) as im:
+                if im.mode == "CMYK":
+                    im.convert("RGB").save(tmp, im.format or "JPEG")
+        except Exception:
+            pass
         tmp.replace(path)
         return path

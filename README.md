@@ -107,6 +107,22 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `h` `l` `j` `k` | move around, vim-style |
 | `t` / `T` | themes |
 
+## desarrollo y pruebas
+
+El proyecto cuenta con dos suites de pruebas para garantizar el funcionamiento y robustez del reproductor:
+
+### 1. Pruebas Unitarias (`pytest`)
+Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones, etc.):
+```sh
+.venv/bin/python3 -m pytest
+```
+
+### 2. Pruebas de Integración Visual / Headless (`screenshots.py`)
+Para ejecutar una simulación interactiva completa de la TUI en caliente (levantando `mpv` y simulando pulsaciones de teclado) y exportar los assets visuales en SVG:
+```sh
+.venv/bin/python3 tools/screenshots.py
+```
+
 ## the suite
 
 - [**ricekit**](https://github.com/rodmera/theia-player/tree/main/ricekit) — El micro-paquete de diseño embebido e integrado localmente en este repositorio para simplificar la instalación y el desarrollo rápido.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "theia-player"
-version = "1.5.0"
+version = "1.5.1"
 description = "A fast, animated TUI player for Navidrome — cover art in the terminal, playback via mpv, themes via ricekit"
 readme = "README.md"
 license = { text = "MIT" }

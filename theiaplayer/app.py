@@ -917,17 +917,21 @@ class TheIAPlayerApp(KitApp):
             self._autoplay_loading = True
             self._fetch_autoplay_songs()
 
-    @work(exclusive=True, group="lib")
+    @work(exclusive=True, group="autodj")
     async def _fetch_autoplay_songs(self) -> None:
         try:
-            songs = await self.client.get_random_songs(size=15)
+            seed = self.queue.current
+            if seed is not None:
+                songs = await self.client.get_similar_songs(seed.id, size=15)
+            else:
+                songs = await self.client.get_random_songs(size=15)
             f = self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS)
             songs = playerconfig.apply_filters(songs, f)
             if songs:
                 self.queue.add(songs)
                 self._render_queue()
                 self._persist_queue()
-                self.notify("Auto DJ: 15 songs enqueued", timeout=2)
+                self.notify(f"Auto DJ: {len(songs)} similar songs enqueued", timeout=3)
         except Exception:
             pass
         finally:

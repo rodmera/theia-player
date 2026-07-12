@@ -1,0 +1,16 @@
+{
+  "venvPath": "/home/rodmera/projects/theia-player",
+  "venv": ".venv",
+  "typeCheckingMode": "off",
+  "reportMissingTypeStubs": false,
+  "reportUndefinedVariable": "none",
+  "reportMissingImports": "none",
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv"
+  ],
+  "extraPaths": [
+    "/home/rodmera/projects/theia-player"
+  ]
+}
