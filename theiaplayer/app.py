@@ -266,8 +266,8 @@ class TheIAPlayerApp(KitApp):
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
         self.player.set_volume(saved_vol)
         mpris_callbacks = {
-            "play": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
-            "pause": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
+            "play": lambda: self._loop.call_soon_threadsafe(self.action_play),
+            "pause": lambda: self._loop.call_soon_threadsafe(self.action_pause),
             "play_pause": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
             "next": lambda: self._loop.call_soon_threadsafe(self.action_next_track),
             "prev": lambda: self._loop.call_soon_threadsafe(self.action_prev_track),
@@ -775,6 +775,23 @@ class TheIAPlayerApp(KitApp):
             # resume a restored queue exactly where it left off
             self._play_current(resume_at=self._resume_position)
             self._resume_position = 0.0
+
+    def action_play(self) -> None:
+        if self.player.active:
+            if self.player.paused:
+                self.player.set_paused(False)
+                if self.mpris is not None:
+                    self.mpris.set_playing(True)
+        elif self.queue.current is not None:
+            self._play_current(resume_at=self._resume_position)
+            self._resume_position = 0.0
+
+    def action_pause(self) -> None:
+        if self.player.active:
+            if not self.player.paused:
+                self.player.set_paused(True)
+                if self.mpris is not None:
+                    self.mpris.set_playing(False)
 
     def action_next_track(self) -> None:
         song = self.queue.advance(natural=False)
