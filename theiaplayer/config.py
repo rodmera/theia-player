@@ -34,6 +34,7 @@ DEFAULT_KEYBINDS: dict = {
     "star":                 "f",
     "share":                "S",
     "lyrics":               "L",
+    "equalizer":            "ctrl+e",
     "go_to_album":          "e",
     "go_to_artist":         "E",
     "toggle_selection":     "v",
@@ -69,6 +70,12 @@ DEFAULT_COLUMNS: dict = {
     "play_count":   False,
 }
 
+DEFAULT_EQUALIZER: dict = {
+    "enabled": False,
+    "preset": "flat",
+    "bands": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+}
+
 DEFAULTS: dict = {
     # playback
     "replaygain":           "album",   # track | album | no
@@ -76,6 +83,7 @@ DEFAULTS: dict = {
     "default_volume":       80,        # 0-130, -1 = restore last
     "replaygain_preamp":    0,         # preamp gain in dB (default: 0)
     "replaygain_fallback":  -6,        # fallback gain in dB if no metadata exists (default: -6)
+    "equalizer":            DEFAULT_EQUALIZER,
     # integrations
     "desktop_notifications": True,
     "discord_rich_presence": False,
@@ -231,7 +239,13 @@ def write_default(config_dir: Path) -> None:
         "# bit_rate     = false\n"
         "# genre        = false\n"
         "# rating       = false\n"
-        "# play_count   = false\n"
+        "# play_count   = false\n\n"
+
+        "# ── Equalizer ────────────────────────────────────────────────────────\n"
+        "# [equalizer]\n"
+        "# enabled = false\n"
+        '# preset = "flat"       # flat | bass | rock | pop | vocal | ...\n'
+        "# bands = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]\n"
     )
 
 
@@ -264,6 +278,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["star"],                 "star",                 show=False),
         Binding(kb["share"],                "share",                show=False),
         Binding(kb["lyrics"],               "show_lyrics",          show=False),
+        Binding(kb["equalizer"],            "show_equalizer",       "eq",                   show=True),
         Binding(kb["go_to_album"],          "go_to_album",          show=False),
         Binding(kb["go_to_artist"],         "go_to_artist",         show=False),
         Binding(kb["toggle_selection"],     "toggle_selection",     show=False),

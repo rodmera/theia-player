@@ -265,6 +265,12 @@ class TheIAPlayerApp(KitApp):
         default_vol = pcfg["default_volume"]
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
         self.player.set_volume(saved_vol)
+        
+        # Apply equalizer on startup if enabled
+        eq_cfg = pcfg.get("equalizer", {})
+        if eq_cfg.get("enabled", False):
+            self.player.set_equalizer(eq_cfg.get("bands", []))
+
         mpris_callbacks = {
             "play": lambda: self._loop.call_soon_threadsafe(self.action_play),
             "pause": lambda: self._loop.call_soon_threadsafe(self.action_pause),
@@ -1098,6 +1104,54 @@ class TheIAPlayerApp(KitApp):
             self.notify("no lyrics found", timeout=3)
             return
         self.push_screen(LyricsModal(song.title, song.artist, lines))
+
+    # ── equalizer ─────────────────────────────────────────────────────
+    def action_show_equalizer(self) -> None:
+        if self.player is None:
+            return
+        eq_cfg = self._pcfg.get("equalizer", {
+            "enabled": False,
+            "preset": "flat",
+            "bands": [0.0] * 10
+        })
+        from theiaplayer.screens import EqualizerModal
+        self.push_screen(
+            EqualizerModal(
+                enabled=bool(eq_cfg.get("enabled", False)),
+                preset=str(eq_cfg.get("preset", "flat")),
+                gains=eq_cfg.get("bands", [0.0] * 10)
+            ),
+            self._equalizer_done
+        )
+
+    def _equalizer_done(self, result: dict | None) -> None:
+        if not result:
+            return
+        self._pcfg["equalizer"] = result
+        self._save_equalizer_settings(result)
+
+    def _save_equalizer_settings(self, result: dict) -> None:
+        path = self.dirs.config_dir / "player.toml"
+        if not path.exists():
+            return
+        try:
+            import tomlkit
+            doc = tomlkit.parse(path.read_text())
+            if "equalizer" not in doc:
+                doc["equalizer"] = tomlkit.table()
+            
+            doc["equalizer"]["enabled"] = result["enabled"]
+            doc["equalizer"]["preset"] = result["preset"]
+            
+            # Format bands array beautifully as a single line
+            bands_array = tomlkit.array()
+            for b in result["bands"]:
+                bands_array.append(float(b))
+            doc["equalizer"]["bands"] = bands_array
+            
+            path.write_text(tomlkit.dumps(doc))
+        except Exception:
+            pass
 
     # ── go to album / artist ──────────────────────────────────────────
     def action_go_to_album(self) -> None:

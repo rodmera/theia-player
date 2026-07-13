@@ -203,6 +203,28 @@ class Player:
         except Exception:
             return "auto"
 
+    def set_equalizer(self, gains: list[float]) -> None:
+        """gains is a list of 10 float values for the 10 EQ bands (31Hz to 16kHz)."""
+        if not gains or all(g == 0.0 for g in gains):
+            try:
+                self._m.af = ""
+            except Exception:
+                pass
+            return
+        
+        freqs = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        filters = []
+        for i, g in enumerate(gains[:10]):
+            f = freqs[i]
+            # equalizer=f=<freq>:t=q:w=1.0:g=<gain>
+            filters.append(f"equalizer=f={f}:t=q:w=1.0:g={g}")
+        
+        af_string = f"lavfi=[{','.join(filters)}]"
+        try:
+            self._m.af = af_string
+        except Exception:
+            pass
+
     def terminate(self) -> None:
         self._closing = True  # observers go quiet before the core dies
         self._want_playing = False
@@ -253,6 +275,9 @@ class NullPlayer:
         return []
 
     def set_audio_device(self, name: str) -> None:
+        pass
+
+    def set_equalizer(self, gains: list[float]) -> None:
         pass
 
     def get_current_audio_device(self) -> str:

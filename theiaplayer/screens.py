@@ -585,3 +585,209 @@ class AudioDeviceSwitcherModal(ModalScreen):
         Binding("escape", "cancel", show=False),
         Binding("q", "cancel", show=False),
     ]
+
+
+# ── Equalizer ─────────────────────────────────────────────────────────────────
+
+PRESETS: dict[str, list[float]] = {
+    "flat":       [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "bass":       [6.0, 5.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    "rock":       [4.0, 3.0, -1.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0],
+    "pop":        [-2.0, -1.0, 0.0, 2.0, 4.0, 4.0, 2.0, 0.0, -1.0, -2.0],
+    "vocal":      [-4.0, -3.0, -2.0, 0.0, 3.0, 4.0, 3.0, 1.0, -1.0, -3.0],
+    "electronic": [5.0, 4.0, 1.0, 0.0, -1.0, 2.0, 1.0, 3.0, 4.0, 5.0],
+    "classical":  [4.0, 3.0, 2.0, 2.0, -1.0, -1.0, 0.0, 2.0, 3.0, 4.0],
+}
+
+
+class EqualizerBand(Static):
+    """A vertical column representing a single frequency band in the EQ."""
+    def __init__(self, freq_label: str, gain: float = 0.0) -> None:
+        super().__init__(classes="eq-band")
+        self.freq_label = freq_label
+        self.gain = gain  # -12.0 to +12.0 dB
+        self.selected = False
+
+    def render(self) -> Text:
+        t = Text()
+        # Render a vertical bar from +12dB (top) to -12dB (bottom)
+        # Height of the bar: 13 lines (steps of 2dB)
+        for step in range(12, -13, -2):
+            is_active = False
+            if self.gain >= 0:
+                is_active = (0 <= step <= self.gain)
+            else:
+                is_active = (self.gain <= step <= 0)
+                
+            char = "█" if is_active else "░"
+            color = "#00ffcc" if is_active else "#333333"
+            if step == 0 and not is_active:
+                char = "─"  # center line
+                color = "#555555"
+                
+            t.append(f" {char} \n", style=color)
+            
+        t.append(f"\n{self.freq_label}\n", style="bold" if self.selected else "dim")
+        t.append(f"{self.gain:+.1f}dB", style="#00ffcc" if self.selected else "dim")
+        return t
+
+    def on_click(self, event) -> None:
+        # Calculate gain based on click's Y coordinate (0 to 12)
+        y = event.y
+        if 0 <= y <= 12:
+            step = 12 - (y * 2)
+            self.gain = max(-12.0, min(12.0, float(step)))
+            self.refresh()
+            self.screen.on_band_changed(self)
+
+
+class EqualizerModal(ModalScreen):
+    """An interactive 10-band software parametric equalizer modal."""
+
+    BINDINGS = [
+        Binding("escape", "save_close", show=False),
+        Binding("q", "save_close", show=False),
+        Binding("h,left", "select_prev", show=False),
+        Binding("l,right", "select_next", show=False),
+        Binding("k,up", "gain_up", show=False),
+        Binding("j,down", "gain_down", show=False),
+        Binding("p,P", "cycle_preset", "presets"),
+        Binding("space", "toggle_eq", "toggle"),
+    ]
+
+    DEFAULT_CSS = """
+    EqualizerModal { align: center middle; background: $kit-overlay; }
+    EqualizerModal #eq-box {
+        width: 78; height: 21;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    EqualizerModal #eq-title { margin-bottom: 1; content-align: center middle; text-align: center; }
+    EqualizerModal #eq-bands {
+        height: 15;
+        align: center middle;
+    }
+    EqualizerModal .eq-band {
+        width: 7;
+        height: 15;
+        content-align: center middle;
+        text-align: center;
+        background: $kit-modal-bg;
+    }
+    EqualizerModal .eq-band.selected {
+        background: #112211;
+    }
+    EqualizerModal #eq-footer {
+        margin-top: 1;
+        content-align: center middle;
+        text-align: center;
+    }
+    """
+
+    def __init__(self, enabled: bool, preset: str, gains: list[float]) -> None:
+        super().__init__()
+        self._enabled = enabled
+        self._preset = preset
+        self._gains = list(gains) if gains else [0.0] * 10
+        self._selected_idx = 0
+        self._bands: list[EqualizerBand] = []
+        self._freqs = ["31Hz", "62Hz", "125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz", "8kHz", "16kHz"]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="eq-box"):
+            yield Static("♪  Equalizer", id="eq-title")
+            with Horizontal(id="eq-bands"):
+                for i, freq in enumerate(self._freqs):
+                    band = EqualizerBand(freq, self._gains[i])
+                    if i == self._selected_idx:
+                        band.selected = True
+                        band.add_class("selected")
+                    yield band
+            yield Static(self._footer_text(), id="eq-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#eq-box"))
+        settle_pop_in(self, "#eq-box")
+        self._bands = list(self.query(".eq-band"))
+
+    def _footer_text(self) -> str:
+        state = "[ON]" if self._enabled else "[OFF]"
+        preset_name = self._preset.upper()
+        return f"Status: {state}  ·  Preset: {preset_name}  ·  [Space]: Toggle  ·  [P]: Presets"
+
+    def _get_gains(self) -> list[float]:
+        return [b.gain for b in self._bands]
+
+    def on_band_changed(self, band: EqualizerBand) -> None:
+        idx = self._bands.index(band)
+        self._gains[idx] = band.gain
+        self._preset = "custom"
+        self.query_one("#eq-footer", Static).update(self._footer_text())
+        if self._enabled:
+            self.app.player.set_equalizer(self._get_gains())
+
+    def action_select_next(self) -> None:
+        self._bands[self._selected_idx].selected = False
+        self._bands[self._selected_idx].remove_class("selected")
+        self._bands[self._selected_idx].refresh()
+        
+        self._selected_idx = (self._selected_idx + 1) % len(self._bands)
+        
+        self._bands[self._selected_idx].selected = True
+        self._bands[self._selected_idx].add_class("selected")
+        self._bands[self._selected_idx].refresh()
+
+    def action_select_prev(self) -> None:
+        self._bands[self._selected_idx].selected = False
+        self._bands[self._selected_idx].remove_class("selected")
+        self._bands[self._selected_idx].refresh()
+        
+        self._selected_idx = (self._selected_idx - 1) % len(self._bands)
+        
+        self._bands[self._selected_idx].selected = True
+        self._bands[self._selected_idx].add_class("selected")
+        self._bands[self._selected_idx].refresh()
+
+    def action_gain_up(self) -> None:
+        band = self._bands[self._selected_idx]
+        band.gain = min(12.0, band.gain + 1.0)
+        band.refresh()
+        self.on_band_changed(band)
+
+    def action_gain_down(self) -> None:
+        band = self._bands[self._selected_idx]
+        band.gain = max(-12.0, band.gain - 1.0)
+        band.refresh()
+        self.on_band_changed(band)
+
+    def action_toggle_eq(self) -> None:
+        self._enabled = not self._enabled
+        self.query_one("#eq-footer", Static).update(self._footer_text())
+        if self._enabled:
+            self.app.player.set_equalizer(self._get_gains())
+        else:
+            self.app.player.set_equalizer([])
+
+    def action_cycle_preset(self) -> None:
+        presets_list = ["flat", "bass", "rock", "pop", "vocal", "electronic", "classical"]
+        try:
+            cur_idx = presets_list.index(self._preset)
+        except ValueError:
+            cur_idx = -1
+        next_preset = presets_list[(cur_idx + 1) % len(presets_list)]
+        self._preset = next_preset
+        
+        gains = PRESETS[next_preset]
+        for i, band in enumerate(self._bands):
+            band.gain = gains[i]
+            band.refresh()
+            
+        self.query_one("#eq-footer", Static).update(self._footer_text())
+        if self._enabled:
+            self.app.player.set_equalizer(gains)
+
+    def action_save_close(self) -> None:
+        self.dismiss({
+            "enabled": self._enabled,
+            "preset": self._preset,
+            "bands": self._get_gains()
+        })
