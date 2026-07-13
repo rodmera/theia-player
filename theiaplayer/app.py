@@ -1132,7 +1132,7 @@ class TheIAPlayerApp(KitApp):
         self._save_equalizer_settings(result)
 
     def _save_equalizer_settings(self, result: dict) -> None:
-        path = self.dirs.config_dir / "player.toml"
+        path = self.dirs.config_file
         if not path.exists():
             return
         try:
