@@ -6,7 +6,7 @@ kitty/sixel graphics protocols with a unicode fallback.
 
 from __future__ import annotations
 
-__version__ = "1.6.3"
+__version__ = "1.6.4"
 
 
 def main() -> None:

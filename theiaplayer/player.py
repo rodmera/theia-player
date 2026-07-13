@@ -299,6 +299,14 @@ def create_player(
 ):
     if not MPV_AVAILABLE:
         return NullPlayer()
+        
+    # On Linux, default the Audio Output (ao) to "pulse" if not specified,
+    # as pipewire-pulse provides much superior stream-rescue and un-corking 
+    # capabilities than native pipewire/alsa during device hotplug events.
+    import sys
+    if ao is None and sys.platform != "darwin":
+        ao = "pulse"
+
     return Player(
         on_position,
         on_track_end,
