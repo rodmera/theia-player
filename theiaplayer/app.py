@@ -736,6 +736,12 @@ class TheIAPlayerApp(KitApp):
             if self.mpris is not None:
                 self.mpris.set_stopped()
             return
+
+        # Close and pro-actively reload lyrics if currently viewing them
+        from theiaplayer.screens import LyricsModal
+        if isinstance(self.screen, LyricsModal):
+            self.pop_screen()
+            self.action_show_lyrics()
         
         # Audio cache implementation
         audio_path = self._get_cached_audio_path(song)
