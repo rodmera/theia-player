@@ -34,7 +34,7 @@ DEFAULT_KEYBINDS: dict = {
     "star":                 "f",
     "share":                "S",
     "lyrics":               "L",
-    "equalizer":            "ctrl+e",
+    "equalizer":            "ctrl+e,y",
     "go_to_album":          "e",
     "go_to_artist":         "E",
     "toggle_selection":     "v",

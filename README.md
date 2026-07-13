@@ -45,7 +45,7 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 - **five themes**, live-previewed (`t` cycles, `T` picks) — including `clear`
   (your terminal's transparency shows through) and `system` (your terminal's
   own ANSI palette)
-- **10-band equalizer (EQ)** — parametric software equalizer with real-time audio filters (`ctrl+e` to adjust bands and toggle presets: Bass, Rock, Pop, Vocal, Classical, Electronic, Flat)
+- **10-band equalizer (EQ)** — parametric software equalizer with real-time audio filters (`ctrl+e` / `y` to adjust bands and toggle presets: Bass, Rock, Pop, Vocal, Classical, Electronic, Flat)
 
 <div align="center">
 <img src="assets/shot-search.png" alt="search" width="49%">
@@ -107,7 +107,7 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `/` | search |
 | `h` `l` `j` `k` | move around, vim-style |
 | `t` / `T` | themes |
-| `ctrl+e` | equalizer (gains and presets) |
+| `ctrl+e` / `y` | equalizer (gains and presets) |
 
 ## desarrollo y pruebas
 
