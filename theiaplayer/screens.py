@@ -212,6 +212,13 @@ class LyricsModal(ModalScreen):
         Binding("q", "cancel", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
+        Binding("space", "app_play_pause", show=False),
+        Binding("n", "app_next_track", show=False),
+        Binding("b", "app_prev_track", show=False),
+        Binding("left", "app_seek_back", show=False),
+        Binding("right", "app_seek_fwd", show=False),
+        Binding("shift+left", "app_seek_back_big", show=False),
+        Binding("shift+right", "app_seek_fwd_big", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -302,6 +309,27 @@ class LyricsModal(ModalScreen):
 
     def action_scroll_up(self) -> None:
         self.query_one("#lyrics-scroll", VerticalScroll).scroll_up()
+
+    def action_app_play_pause(self) -> None:
+        self.app.action_play_pause()
+
+    def action_app_next_track(self) -> None:
+        self.app.action_next_track()
+
+    def action_app_prev_track(self) -> None:
+        self.app.action_prev_track()
+
+    def action_app_seek_back(self) -> None:
+        self.app.action_seek(-5)
+
+    def action_app_seek_fwd(self) -> None:
+        self.app.action_seek(5)
+
+    def action_app_seek_back_big(self) -> None:
+        self.app.action_seek(-30)
+
+    def action_app_seek_fwd_big(self) -> None:
+        self.app.action_seek(30)
 
 
 class SearchModal(ModalScreen):
