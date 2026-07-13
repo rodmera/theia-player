@@ -288,6 +288,8 @@ class TheIAPlayerApp(KitApp):
             now.set_song(self.queue.current)
             now.set_progress(self._resume_position, self.queue.current.duration if self.queue.current else 0)
             now._title_flash = 0
+            if self.queue.current and self.queue.current.cover_art:
+                self._load_art(self.queue.current.cover_art, f"song-{self.queue.current.id}")
         now.shuffle = self.queue.shuffle
         now.repeat = self.queue.repeat
         self._render_queue()
@@ -694,6 +696,9 @@ class TheIAPlayerApp(KitApp):
     def _track_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         if self.player is not None and self.player.active:
             return  # while playing, the cover belongs to the current song
+        # Only change cover art on highlight if the tracks list actually has focus
+        if not self.query_one("#tracks-list").has_focus:
+            return
         song = next((s for s in self._songs if s.id == event.option.id), None)
         if song is not None and song.cover_art:
             self._load_art(song.cover_art, f"song-{song.id}")
