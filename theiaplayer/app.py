@@ -288,8 +288,6 @@ class TheIAPlayerApp(KitApp):
             now.set_song(self.queue.current)
             now.set_progress(self._resume_position, self.queue.current.duration if self.queue.current else 0)
             now._title_flash = 0
-            if self.queue.current and self.queue.current.cover_art:
-                self._load_art(self.queue.current.cover_art, f"song-{self.queue.current.id}")
         now.shuffle = self.queue.shuffle
         now.repeat = self.queue.repeat
         self._render_queue()
@@ -350,6 +348,10 @@ class TheIAPlayerApp(KitApp):
         sidebar.focus()
         self._highlight_view(self.view)
         self._load_playlists()
+        
+        # Load the cover art of the restored song on startup (now that client is ready)
+        if self.queue.current and self.queue.current.cover_art:
+            self._load_art(self.queue.current.cover_art, f"song-{self.queue.current.id}")
 
     def _render_status(self) -> None:
         if self.client is None:
