@@ -140,6 +140,7 @@ class TheIAPlayerApp(KitApp):
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
         Binding("L", "show_lyrics", "lyrics", show=True),
+        Binding("ctrl+e,y", "show_equalizer", "eq", show=True),
         Binding("ctrl+g", "switch_server", "switch server", show=True),
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
