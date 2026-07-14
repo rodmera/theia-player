@@ -197,7 +197,9 @@ class Player:
             # e.g., if we are running on 'pulse' but the device name is 'pipewire/bluez_output...',
             # we translate it to 'pulse/bluez_output...' so mpv can resolve it.
             ao = self._m.ao
-            if not ao:
+            if isinstance(ao, list) and ao:
+                ao = ao[0].get("name")
+            if not isinstance(ao, str):
                 ao = "pulse"
             if "/" in name:
                 current_prefix, device_id = name.split("/", 1)
