@@ -68,6 +68,7 @@ class Player:
             replaygain_preamp=replaygain_preamp,
             replaygain_fallback=replaygain_fallback,
             audio_exclusive=audio_exclusive,
+            pipewire_buffer=150,
         )
         if ao:
             opts["ao"] = ao
@@ -312,12 +313,12 @@ def create_player(
     if not MPV_AVAILABLE:
         return NullPlayer()
         
-    # On Linux, default the Audio Output (ao) to "pulse" if not specified,
-    # as pipewire-pulse provides much superior stream-rescue and un-corking 
-    # capabilities than native pipewire/alsa during device hotplug events.
+    # On Linux, default the Audio Output (ao) to "pipewire" if not specified,
+    # as the native pipewire driver fully supports direct, native device targeting 
+    # (allowing ctrl+d to work flawlessly and bypass system-wide routing).
     import sys
     if ao is None and sys.platform != "darwin":
-        ao = "pulse"
+        ao = "pipewire"
 
     return Player(
         on_position,
