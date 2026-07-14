@@ -484,6 +484,10 @@ class TheIAPlayerApp(KitApp):
         oid = event.option.id
         if not oid or oid == "pl-new":
             return
+        # Si la vista seleccionada ya está activa en pantalla, NO volver a cargarla.
+        # Esto previene de forma absoluta recargas accidentales en segundo plano y desincronizaciones de la cola.
+        if oid == self.view and self._songs:
+            return
         self.view = oid
         self.dirs.save_state({"view": oid})
         self._load_view(oid)
