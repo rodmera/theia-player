@@ -345,7 +345,20 @@ class TheIAPlayerApp(KitApp):
         # Restore saved audio device if available
         saved_device = self.dirs.load_state().get("audio_device")
         if saved_device and self.player is not None:
-            self.player.set_audio_device(saved_device)
+            # Smart-match to handle driver switches (e.g. pipewire/ -> pulse/ or suffix changes)
+            current_devices = self.player.get_audio_devices()
+            target_device = saved_device
+            
+            distinctive = saved_device.split("/", 1)[-1] if "/" in saved_device else saved_device
+            distinctive_base = distinctive.rsplit(".", 1)[0] if "." in distinctive else distinctive
+            
+            for dev in current_devices:
+                dev_name = dev.get("name", "")
+                if distinctive_base in dev_name:
+                    target_device = dev_name
+                    break
+            
+            self.player.set_audio_device(target_device)
         self._render_status()
         cached = self.dirs.read_cache("playlists")
         if cached:
