@@ -413,56 +413,60 @@ class TheIAPlayerApp(KitApp):
 
     # ── sidebar ───────────────────────────────────────────────────────
     def _render_sidebar(self) -> None:
-        ol = self.query_one("#sidebar-list", ClickList)
-        highlighted_id = None
-        if ol.highlighted is not None:
-            highlighted_id = ol.get_option_at_index(ol.highlighted).id
-        options: list[Option] = []
-        for view_id, label in VIEWS:
-            row = Text(no_wrap=True, overflow="ellipsis")
-            glyph, color = ("◍", palette.mauve)
-            if view_id == "home":
-                glyph, color = "🏠", palette.peach
-            elif view_id == "starred":
-                glyph, color = icons.STAR, palette.yellow
-            elif view_id == "shuffle-all":
-                glyph, color = "◍", palette.peach
-            row.append(f"{glyph} ", style=color)
-            row.append(label, style=palette.text)
-            options.append(Option(row, id=view_id))
-        options.append(Option(Text(" "), disabled=True))
-        options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
-        current_folder = None
-        for p in self._playlists:
-            row = Text(no_wrap=True, overflow="ellipsis")
-            if "/" in p.name:
-                folder, name = p.name.split("/", 1)
-                if folder != current_folder:
-                    current_folder = folder
-                    folder_row = Text(no_wrap=True, overflow="ellipsis")
-                    folder_row.append(f" 📂 {folder}", style=f"bold {palette.peach}")
-                    options.append(Option(folder_row, disabled=True))
-                row.append("   ", style=palette.vfaint)
-                row.append(f"{icons.LIST} ", style=palette.lav)
-                row.append(name, style=palette.text)
-                row.append(f" {p.song_count}♪", style=palette.vfaint)
-            else:
-                current_folder = None
-                row.append(f"{icons.LIST} ", style=palette.lav)
-                row.append(p.name, style=palette.text)
-                row.append(f" {p.song_count}♪", style=palette.vfaint)
-            options.append(Option(row, id=f"pl:{p.id}"))
-        new_row = Text(no_wrap=True)
-        new_row.append(f"{icons.PLUS} ", style=palette.green)
-        new_row.append("new playlist", style=palette.sub)
-        options.append(Option(new_row, id="pl-new"))
+        self._loading_playlists = True
+        try:
+            ol = self.query_one("#sidebar-list", ClickList)
+            highlighted_id = None
+            if ol.highlighted is not None:
+                highlighted_id = ol.get_option_at_index(ol.highlighted).id
+            options: list[Option] = []
+            for view_id, label in VIEWS:
+                row = Text(no_wrap=True, overflow="ellipsis")
+                glyph, color = ("◍", palette.mauve)
+                if view_id == "home":
+                    glyph, color = "🏠", palette.peach
+                elif view_id == "starred":
+                    glyph, color = icons.STAR, palette.yellow
+                elif view_id == "shuffle-all":
+                    glyph, color = "◍", palette.peach
+                row.append(f"{glyph} ", style=color)
+                row.append(label, style=palette.text)
+                options.append(Option(row, id=view_id))
+            options.append(Option(Text(" "), disabled=True))
+            options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
+            current_folder = None
+            for p in self._playlists:
+                row = Text(no_wrap=True, overflow="ellipsis")
+                if "/" in p.name:
+                    folder, name = p.name.split("/", 1)
+                    if folder != current_folder:
+                        current_folder = folder
+                        folder_row = Text(no_wrap=True, overflow="ellipsis")
+                        folder_row.append(f" 📂 {folder}", style=f"bold {palette.peach}")
+                        options.append(Option(folder_row, disabled=True))
+                    row.append("   ", style=palette.vfaint)
+                    row.append(f"{icons.LIST} ", style=palette.lav)
+                    row.append(name, style=palette.text)
+                    row.append(f" {p.song_count}♪", style=palette.vfaint)
+                else:
+                    current_folder = None
+                    row.append(f"{icons.LIST} ", style=palette.lav)
+                    row.append(p.name, style=palette.text)
+                    row.append(f" {p.song_count}♪", style=palette.vfaint)
+                options.append(Option(row, id=f"pl:{p.id}"))
+            new_row = Text(no_wrap=True)
+            new_row.append(f"{icons.PLUS} ", style=palette.green)
+            new_row.append("new playlist", style=palette.sub)
+            options.append(Option(new_row, id="pl-new"))
 
-        had_focus = ol.has_focus
-        ol.clear_options()
-        ol.add_options(options)
-        self._highlight_view(highlighted_id or self.view)
-        if had_focus:
-            ol.focus()
+            had_focus = ol.has_focus
+            ol.clear_options()
+            ol.add_options(options)
+            self._highlight_view(highlighted_id or self.view)
+            if had_focus:
+                ol.focus()
+        finally:
+            self._loading_playlists = False
 
     def _highlight_view(self, view_id: str | None) -> None:
         if not view_id:
@@ -475,6 +479,8 @@ class TheIAPlayerApp(KitApp):
 
     @on(OptionList.OptionHighlighted, "#sidebar-list")
     def _sidebar_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if getattr(self, "_loading_playlists", False):
+            return  # Ignore programmatic highlights during sidebar repopulation
         oid = event.option.id
         if not oid or oid == "pl-new":
             return
