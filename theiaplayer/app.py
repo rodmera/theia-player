@@ -131,6 +131,8 @@ class TheIAPlayerApp(KitApp):
         Binding("X", "queue_clear", show=False),
         Binding("f", "star", show=False),
         Binding("p", "playlist_add", show=False),
+        Binding("e", "go_to_album", show=False),
+        Binding("E", "go_to_artist", show=False),
         Binding("h", "focus_panel(-1)", show=False),
         Binding("l", "focus_panel(1)", show=False),
         Binding("R", "refresh", show=False),
