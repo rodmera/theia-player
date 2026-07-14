@@ -26,17 +26,15 @@ def _image_class():
     if kind == "off":
         return None
     try:
-        import sys
-        # Temporarily mock sys.__stdout__ during import if a specific protocol is forced
-        # (like 'tgp' on Ghostty/Kitty), completely bypassing textual_image's slow, 
-        # blocking, and crash-prone terminal Sixel/TGP query on startup.
-        orig_stdout = sys.__stdout__
-        if kind != "auto":
-            sys.__stdout__ = None
-        try:
-            from textual_image import widget as tiw
-        finally:
-            sys.__stdout__ = orig_stdout
+        # Pre-import sixel and tgp submodules and monkeypatch their blocking TTY query functions
+        # before importing the main textual_image module. This cleanly bypasses the slow, blocking
+        # TTY query on startup while keeping is_tty=True, allowing high-res cover art to render perfectly.
+        import textual_image.renderable.sixel as sixel
+        import textual_image.renderable.tgp as tgp
+        sixel.query_terminal_support = lambda: False
+        tgp.query_terminal_support = lambda: False
+
+        from textual_image import widget as tiw
 
         return {
             "auto": tiw.Image,  # auto-detected best protocol
