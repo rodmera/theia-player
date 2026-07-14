@@ -499,11 +499,55 @@ class TheIAPlayerApp(KitApp):
             )
         elif oid == "shuffle-all":
             self._shuffle_everything()
-        elif self._songs:
-            # enter on a view or playlist just plays it from the top
-            self._play_songs(self._songs, 0)
+        else:
+            self._play_view_from_top(oid)
 
     # ── loading songs into the tracks pane ────────────────────────────
+    async def _fetch_songs_for_view(self, view_id: str) -> list[Song]:
+        if view_id == "home":
+            try:
+                res = await asyncio.gather(
+                    self.client.get_random_songs(size=10),
+                    self.client.get_songs_by_albums("newest"),
+                    self.client.get_songs_by_albums("frequent"),
+                    return_exceptions=True
+                )
+                randoms = res[0] if isinstance(res[0], list) else []
+                newest = res[1] if isinstance(res[1], list) else []
+                frequent = res[2] if isinstance(res[2], list) else []
+                newest = newest[:10]
+                frequent = frequent[:10]
+                seen_ids = set()
+                mixed_songs = []
+                for song in randoms + frequent + newest:
+                    if song.id not in seen_ids:
+                        seen_ids.add(song.id)
+                        mixed_songs.append(song)
+                return mixed_songs
+            except Exception:
+                return []
+        elif view_id in ("all-songs", "shuffle-all"):
+            return await self.client.get_all_songs()
+        elif view_id in ("newest", "recent", "frequent"):
+            return await self.client.get_songs_by_albums(view_id)
+        elif view_id == "starred":
+            return (await self.client.get_starred()).songs
+        elif view_id.startswith("pl:"):
+            pid = view_id.split(":", 1)[1]
+            return await self.client.get_playlist_songs(pid)
+        return []
+
+    @work(exclusive=True, group="songs")
+    async def _play_view_from_top(self, view_id: str) -> None:
+        self.notify("loading playlist…", timeout=2)
+        try:
+            songs = await self._fetch_songs_for_view(view_id)
+            if songs:
+                self._show_songs(songs, self._tracks_title(view_id))
+                self._play_songs(songs, 0)
+        except Exception as e:
+            self._connection_trouble(e)
+
     def _tracks_title(self, view_id: str) -> str:
         if view_id.startswith("pl:"):
             pid = view_id.split(":", 1)[1]
@@ -548,61 +592,33 @@ class TheIAPlayerApp(KitApp):
         await asyncio.sleep(0.12)  # superseded while the cursor is moving
         title = self._tracks_title(view_id)
 
-        if view_id == "home":
-            cache_key = "home-mix"
+        cache_map = {
+            "home": "home-mix",
+            "all-songs": "all-songs",
+            "shuffle-all": "all-songs",
+            "newest": "songview-newest",
+            "recent": "songview-recent",
+            "frequent": "songview-frequent",
+            "starred": "starred-songs"
+        }
+        cache_key = cache_map.get(view_id)
+        if not cache_key and view_id.startswith("pl:"):
+            cache_key = f"playlist-songs-{view_id.split(':', 1)[1]}"
 
-            async def fetch():
-                try:
-                    res = await asyncio.gather(
-                        self.client.get_random_songs(size=10),
-                        self.client.get_songs_by_albums("newest"),
-                        self.client.get_songs_by_albums("frequent"),
-                        return_exceptions=True
-                    )
-                    randoms = res[0] if isinstance(res[0], list) else []
-                    newest = res[1] if isinstance(res[1], list) else []
-                    frequent = res[2] if isinstance(res[2], list) else []
-                    newest = newest[:10]
-                    frequent = frequent[:10]
-                    seen_ids = set()
-                    mixed_songs = []
-                    for song in randoms + frequent + newest:
-                        if song.id not in seen_ids:
-                            seen_ids.add(song.id)
-                            mixed_songs.append(song)
-                    return mixed_songs
-                except Exception:
-                    return []
-        elif view_id in ("all-songs", "shuffle-all"):
-            cache_key, fetch = "all-songs", self.client.get_all_songs
-        elif view_id in ("newest", "recent", "frequent"):
-            cache_key = f"songview-{view_id}"
+        if cache_key:
+            cached = self.dirs.read_cache(cache_key)
+            if cached:
+                self._show_songs([Song.from_dict(s) for s in cached.get("songs", [])], title)
 
-            async def fetch(v=view_id):
-                return await self.client.get_songs_by_albums(v)
-        elif view_id == "starred":
-            cache_key = "starred-songs"
-
-            async def fetch():
-                return (await self.client.get_starred()).songs
-        elif view_id.startswith("pl:"):
-            pid = view_id.split(":", 1)[1]
-            cache_key = f"playlist-songs-{pid}"
-
-            async def fetch(p=pid):
-                return await self.client.get_playlist_songs(p)
-        else:
-            return
-
-        cached = self.dirs.read_cache(cache_key)
-        if cached:
-            self._show_songs([Song.from_dict(s) for s in cached.get("songs", [])], title)
         try:
-            songs = await fetch()
+            songs = await self._fetch_songs_for_view(view_id)
         except Exception as e:
             self._connection_trouble(e)
             return
-        self.dirs.write_cache(cache_key, {"songs": [s.to_dict() for s in songs]})
+
+        if cache_key:
+            self.dirs.write_cache(cache_key, {"songs": [s.to_dict() for s in songs]})
+
         if self.view == view_id:
             self._show_songs(songs, title)
 
