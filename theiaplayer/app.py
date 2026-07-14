@@ -1575,8 +1575,11 @@ class TheIAPlayerApp(KitApp):
         if self.screen is not self.screen_stack[0]:
             return  # modal open — don't yank state around underneath it
         self._load_playlists()
-        if not self.view.startswith(("artist:", "album:")):
-            self._load_view(self.view)
+        # No recargar de forma automática la vista activa del medio para evitar cambiarle la lista
+        # en curso al usuario de forma sorpresiva y perder su posición de scroll y foco.
+        # El refresco de las canciones ahora se realiza exclusivamente de forma explícita presionando 'R'.
+        # if not self.view.startswith(("artist:", "album:")):
+        #     self._load_view(self.view)
 
     def action_help(self) -> None:
         self.push_screen(HelpModal(HELP_SECTIONS, title="theia-player · keys"))
