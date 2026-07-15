@@ -33,6 +33,8 @@ class ClickList(NavList):
     async def _on_click(self, event) -> None:
         clicked = event.style.meta.get("option")
         if clicked is not None and not self._options[clicked].disabled:
+            event.stop()
+            event.prevent_default()
             self.highlighted = clicked
             if getattr(event, "chain", 1) >= 2:
                 self.action_select()
