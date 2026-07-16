@@ -1007,8 +1007,7 @@ class TheIAPlayerApp(KitApp):
                 songs = await self.client.get_similar_songs(seed.id, size=15)
             else:
                 songs = await self.client.get_random_songs(size=15)
-            f = self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS)
-            songs = playerconfig.apply_filters(songs, f)
+            songs = self._apply_filters(songs)
             if songs:
                 self.queue.add(songs)
                 self._render_queue()

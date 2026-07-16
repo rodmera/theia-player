@@ -149,6 +149,13 @@ def load(config_dir: Path) -> dict:
     try:
         overrides = tomllib.loads(path.read_text())
         overrides = _normalize_keybinds(overrides)
+        if "app" in overrides and isinstance(overrides["app"], dict):
+            app_data = overrides.pop("app")
+            for ak, av in app_data.items():
+                if ak == "gapless_playback":
+                    overrides["gapless"] = av
+                else:
+                    overrides[ak] = av
     except Exception:
         return cfg
     for k, v in overrides.items():
