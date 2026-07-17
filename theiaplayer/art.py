@@ -22,18 +22,14 @@ from ricekit.widgets import pop_in
 
 
 def _image_class():
+    # The blocking TTY probes of textual_image are already neutralized at
+    # package import time by ``theiaplayer.terminal_probe`` (Ghostty/Kitty
+    # detection + sixel/tgp query monkey-patches). We just honor the resolved
+    # NAVITUI_ART env var here.
     kind = os.environ.get("NAVITUI_ART", "auto").lower()
     if kind == "off":
         return None
     try:
-        # Pre-import sixel and tgp submodules and monkeypatch their blocking TTY query functions
-        # before importing the main textual_image module. This cleanly bypasses the slow, blocking
-        # TTY query on startup while keeping is_tty=True, allowing high-res cover art to render perfectly.
-        import textual_image.renderable.sixel as sixel
-        import textual_image.renderable.tgp as tgp
-        sixel.query_terminal_support = lambda: False
-        tgp.query_terminal_support = lambda: False
-
         from textual_image import widget as tiw
 
         return {

@@ -1757,18 +1757,14 @@ def main() -> None:
     import sys
     import threading
     import traceback
-    
+
     # Silenciar warnings menores de PipeWire
     os.environ["PIPEWIRE_DEBUG"] = "0"
-    
-    # Si corre en Ghostty o Kitty, forzar de forma nativa el Kitty Graphics Protocol (tgp) para portadas de alta resolucion real.
-    # Nota de sistemas: El uso de enlaces simbolicos directos de TTY (sin wrappers de Bash intermedias) es mandatorio
-    # para que la negociacion de capacidades ANSI de textual-image fluya de forma asincrona y estable en caliente.
-    term = os.environ.get("TERM_PROGRAM", "").lower()
-    is_kitty_compatible = (term in ("ghostty", "kitty") or os.environ.get("TERM") == "xterm-kitty")
-    if is_kitty_compatible and "NAVITUI_ART" not in os.environ:
-        os.environ["NAVITUI_ART"] = "tgp"
-        
+
+    # Ghostty/Kitty detection and textual_image TTY-query bypass live in
+    # ``theiaplayer.terminal_probe`` and run automatically when the package
+    # is imported (via theiaplayer/__init__.py). Nothing else to do here.
+
     log_path = "/tmp/theia-player.log"
     try:
         # Intentar limpiar el archivo de log viejo para partir de cero
