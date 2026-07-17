@@ -1,9 +1,13 @@
 """Domain models — thin dataclasses over the Subsonic JSON shapes.
 
+
 Every model round-trips through plain dicts (`to_dict`/`from_dict`) so the
 whole library can live in the AppDirs JSON cache and render instantly on
 the next launch.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

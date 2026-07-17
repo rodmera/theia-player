@@ -1,5 +1,6 @@
 """Playback engine — a thin, thread-aware wrapper around libmpv.
 
+
 mpv does the heavy lifting (HTTP streaming, every codec, seeking, volume);
 we observe `time-pos`/`duration` and the `end-file` event. mpv fires those
 callbacks on its own event thread, so the app schedules UI work with
@@ -9,6 +10,9 @@ callbacks on its own event thread, so the app schedules UI work with
 If libmpv isn't installed the app still runs (browse, search, queue); it
 just tells you how to get sound on your OS.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

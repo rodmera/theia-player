@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "theia-player"
-version = "1.8.0"
+version = "1.8.1"
 description = "A fast, animated TUI player for Navidrome — cover art in the terminal, playback via mpv, themes via ricekit"
 readme = "README.md"
 license = { text = "MIT" }
@@ -47,3 +47,21 @@ theia-player = "theiaplayer:main"
 
 [tool.setuptools]
 packages = ["theiaplayer", "ricekit"]
+
+# Mirror pyrightconfig.json so the pyright-based LSP server (which ignores
+# pyrightconfig.json in some setups) also picks up the relaxed settings.
+# These are DX-only — the runtime and tests don't depend on them.
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]
+typeCheckingMode = "off"
+reportMissingTypeStubs = false
+reportUndefinedVariable = "none"
+reportMissingImports = "none"
+reportOptionalMemberAccess = "none"
+reportOptionalIterable = "none"
+reportOptionalContains = "none"
+reportOptionalOperand = "none"
+reportTypedDictNotRequiredAccess = "none"
+exclude = ["**/node_modules", "**/__pycache__", ".venv", "ricekit", "theia_player.egg-info", "tools"]

@@ -1,10 +1,14 @@
 """NaviTui's animated widgets.
 
+
 One shared 8fps heartbeat in the app calls `.tick()` on each of these; every
 widget only repaints its own few cells, so the constant motion costs almost
 nothing. Colors are read from `ricekit.palette` at render time so a theme
 switch restyles every animation live.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

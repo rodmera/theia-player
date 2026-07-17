@@ -1,5 +1,6 @@
 """MPRIS2 MediaPlayer2.Player interface via dbus-python.
 
+
 Runs in a background thread (dbus-python is synchronous/GLib-based, not
 asyncio-friendly). The app calls `update()` from the UI thread; the thread
 publishes the state on the D-Bus session bus.
@@ -11,6 +12,9 @@ Exposes: PlaybackStatus, Metadata (title/artist/album/art), CanPlay/Pause/etc.
 Implements: Full transport control from external clients (play, pause, play-pause, next, previous)
 via an asynchronous threadsafe event-loop bridge to the main Textual app.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

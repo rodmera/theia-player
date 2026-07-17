@@ -1,10 +1,14 @@
 """The play queue — ordering, shuffle, and repeat live here, not in the UI.
 
+
 The queue's `songs` list IS the play order (what the queue panel shows is
 exactly what will play). Toggling shuffle on keeps the current track first
 and shuffles the rest; toggling it off restores the original order with the
 current track still current.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

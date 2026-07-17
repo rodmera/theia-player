@@ -1,5 +1,6 @@
 """macOS NowPlaying and RemoteCommand integration via PyObjC.
 
+
 Runs the Cocoa NSRunLoop in a background thread to receive media key events
 asynchronously, bridging them safely to the main Textual app thread via
 the event loop.
@@ -7,6 +8,9 @@ the event loop.
 If pyobjc isn't installed or we are not on macOS, this module gracefully
 degrades to a no-op façade, making it safe to import anywhere.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

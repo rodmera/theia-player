@@ -1,9 +1,13 @@
 """Screens and modals: first-run onboarding and global search.
 
+
 Onboarding follows the kit doctrine — never dump a new user into an empty
 screen with an error toast. Credentials are validated live against the
 server and only stored (chmod 600) once a ping succeeds.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

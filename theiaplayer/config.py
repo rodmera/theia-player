@@ -1,8 +1,12 @@
 """Player configuration — player.toml alongside the server credentials file.
 
+
 Parsed once at startup; never mutated at runtime (restart to apply changes).
 Falls back to safe defaults if the file is absent or malformed.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

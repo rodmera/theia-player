@@ -1,4 +1,5 @@
 """Cover art — real images where the terminal can, graceful glyphs where it
+
 can't.
 
 `textual-image` picks the best protocol at runtime (kitty graphics → sixel →
@@ -7,6 +8,9 @@ auto|tgp|sixel|halfcell|unicode|off. Everything is wrapped defensively: art
 must never be the reason the player doesn't start (headless terminals,
 multiplexers and ssh all get the fallback or the placeholder).
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

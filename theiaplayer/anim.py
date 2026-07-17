@@ -1,9 +1,13 @@
 """Animation primitives — pure functions the widgets call every tick.
 
+
 Everything here degrades gracefully under the `system` theme: ANSI palette
 colors can't be blended (there are no RGB values to blend), so gradients and
 shimmers collapse to flat styled text instead of crashing or banding.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

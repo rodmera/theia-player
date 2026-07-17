@@ -1,5 +1,6 @@
 """Centralized terminal protocol detection.
 
+
 Two TTY/ANSI workarounds used to live scattered across the codebase:
 
 - ``art.py`` monkey-patched ``sixel.query_terminal_support`` and
@@ -13,6 +14,9 @@ Both behaviors now live here. ``probe()`` runs once at import time so any
 consumer (``art.py``, ``app.py``, tests) gets the patching for free without
 having to know the details. The function is idempotent.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 

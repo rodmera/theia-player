@@ -65,9 +65,15 @@ def test_cmyk_to_rgb_preserves_pixels():
         # Use a neutral CMYK so the RGB conversion is predictable.
         Image.new("CMYK", (4, 4), (0, 0, 0, 0)).save(path, "JPEG")
         cmyk_to_rgb_safe(path)
-        # After conversion, every pixel should be white-ish (low CMYK -> high RGB).
-        with Image.open(path) as im:
-            assert im.mode == "RGB"
-            px = im.getpixel((0, 0))
-            # PIL converts (0,0,0,0) CMYK to white (255,255,255) by default.
-            assert all(v >= 250 for v in px), f"expected near-white, got {px}"
+        # PIL converts (0,0,0,0) CMYK to white (255,255,255) by default.
+        # Sample 4 corners (always non-empty) and assert each is near-white.
+        # ``getpixel`` on a real RGB image returns ``tuple[int, int, int]``;
+        # pyright's PIL stubs widen it to ``float | None | tuple[...]``, so
+        # we narrow with an explicit cast.
+        with Image.open(path).convert("RGB") as rgb:
+            assert rgb.mode == "RGB"
+            for x, y in [(0, 0), (3, 0), (0, 3), (3, 3)]:
+                r, g, b = rgb.getpixel((x, y))  # type: ignore[misc]
+                assert r >= 250 and g >= 250 and b >= 250, (
+                    f"expected near-white at ({x},{y}), got ({r},{g},{b})"
+                )

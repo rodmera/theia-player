@@ -1,5 +1,6 @@
 """Async Subsonic/OpenSubsonic client for Navidrome.
 
+
 Auth is the salted-token scheme: we store md5(password + salt) and the salt,
 never the password itself. All calls go through `_get`, which unwraps the
 `subsonic-response` envelope and raises `SubsonicError` on failure.
@@ -7,6 +8,9 @@ never the password itself. All calls go through `_get`, which unwraps the
 Cover art is fetched once and kept as files under the app cache dir, so art
 for anything you've already looked at renders instantly and offline.
 """
+
+# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+
 
 from __future__ import annotations
 
