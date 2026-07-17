@@ -1,13 +1,9 @@
 """Animation primitives — pure functions the widgets call every tick.
 
-
 Everything here degrades gracefully under the `system` theme: ANSI palette
 colors can't be blended (there are no RGB values to blend), so gradients and
 shimmers collapse to flat styled text instead of crashing or banding.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -20,14 +16,12 @@ from ricekit import palette
 
 # ── color math ─────────────────────────────────────────────────────────
 
-
 def _rgb(color: str) -> tuple[int, int, int] | None:
     try:
         triplet = Color.parse(color).get_truecolor()
     except Exception:
         return None
     return (triplet.red, triplet.green, triplet.blue)
-
 
 def blend(c1: str, c2: str, t: float) -> str:
     """Mix two colors. Under the ANSI palette there's nothing honest to
@@ -44,15 +38,12 @@ def blend(c1: str, c2: str, t: float) -> str:
         round(a[2] + (b[2] - a[2]) * t),
     )
 
-
 def can_blend() -> bool:
     return not palette.is_ansi
-
 
 # ── the shimmer (the constant logo animation) ──────────────────────────
 
 SHIMMER_TAIL = 10  # phase cells past the end so the glow slides fully off
-
 
 def shimmer(text: str, phase: float, base: str, glow: str, window: float = 4.0) -> Text:
     """A soft highlight that sweeps across `text`. `phase` loops over
@@ -69,11 +60,9 @@ def shimmer(text: str, phase: float, base: str, glow: str, window: float = 4.0) 
         out.append(ch, style=f"bold {style}" if intensity > 0.55 else style)
     return out
 
-
 # ── smooth progress bar (sub-cell precision) ───────────────────────────
 
 _EIGHTHS = "▏▎▍▌▋▊▉█"
-
 
 def smooth_bar(fraction: float, width: int, head_pulse: float = 0.0) -> Text:
     """A minimal, elegant progress slider.
@@ -102,7 +91,6 @@ def smooth_bar(fraction: float, width: int, head_pulse: float = 0.0) -> Text:
         
     return bar
 
-
 def mini_gauge(fraction: float, width: int = 6) -> Text:
     """Small blocky gauge for volume."""
     fraction = max(0.0, min(1.0, fraction))
@@ -112,12 +100,10 @@ def mini_gauge(fraction: float, width: int = 6) -> Text:
     t.append("▯" * (width - lit), style=palette.vfaint)
     return t
 
-
 # ── marquee ────────────────────────────────────────────────────────────
 
 _MARQUEE_GAP = "   ·   "
 _MARQUEE_DWELL = 10  # ticks to rest at the start of each loop
-
 
 def marquee(text: str, width: int, tick: int) -> str:
     """Slide text that doesn't fit; text that fits is returned untouched."""
@@ -130,9 +116,7 @@ def marquee(text: str, width: int, tick: int) -> str:
     doubled = loop + loop
     return doubled[offset : offset + width]
 
-
 # ── time ───────────────────────────────────────────────────────────────
-
 
 def fmt_time(seconds: float | int | None) -> str:
     if not seconds or seconds < 0:
@@ -142,11 +126,9 @@ def fmt_time(seconds: float | int | None) -> str:
         return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}"
     return f"{s // 60}:{s % 60:02d}"
 
-
 # ── the visualizer model (widget-free so it's testable) ────────────────
 
 _BLOCKS = " ▁▂▃▄▅▆▇█"
-
 
 class VizModel:
     """Fake-but-lively EQ bars: each bar eases toward a random target that
@@ -185,16 +167,13 @@ class VizModel:
             t.append(ch, style=color)
         return t
 
-
 # ── glyph cycles ───────────────────────────────────────────────────────
 
 NOTE_FRAMES = ["♪", "♫", "♪", "♬"]
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
-
 def spinner(tick: int) -> str:
     return SPINNER[tick % len(SPINNER)]
-
 
 def note(tick: int) -> str:
     return NOTE_FRAMES[(tick // 3) % len(NOTE_FRAMES)]

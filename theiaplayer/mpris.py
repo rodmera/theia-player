@@ -1,6 +1,5 @@
 """MPRIS2 MediaPlayer2.Player interface via dbus-python.
 
-
 Runs in a background thread (dbus-python is synchronous/GLib-based, not
 asyncio-friendly). The app calls `update()` from the UI thread; the thread
 publishes the state on the D-Bus session bus.
@@ -12,9 +11,6 @@ Exposes: PlaybackStatus, Metadata (title/artist/album/art), CanPlay/Pause/etc.
 Implements: Full transport control from external clients (play, pause, play-pause, next, previous)
 via an asynchronous threadsafe event-loop bridge to the main Textual app.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -39,7 +35,6 @@ try:
 except Exception:
     MPRIS_AVAILABLE = False
 
-
 def _assert_threads_inited() -> None:
     """Raise if dbus-python was imported but ``threads_init()`` wasn't called.
 
@@ -63,7 +58,6 @@ BUS_NAME = "org.mpris.MediaPlayer2.theia-player"
 OBJECT_PATH = "/org/mpris/MediaPlayer2"
 PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_IFACE = "org.mpris.MediaPlayer2"
-
 
 def _define_service(callbacks: dict | None = None):
     """Define _MprisService only when dbus is available — avoids NameError at class parse time."""
@@ -197,7 +191,6 @@ def _define_service(callbacks: dict | None = None):
 
     return _MprisService
 
-
 class MprisController:
     """Thread-safe façade the app uses to push state changes.
 
@@ -257,7 +250,6 @@ class MprisController:
             return
         microsec = int(seconds * 1_000_000)
         GLib.idle_add(self._svc._set_position, microsec)
-
 
 def create(callbacks: dict | None = None) -> MprisController:
     ctrl = MprisController(callbacks)

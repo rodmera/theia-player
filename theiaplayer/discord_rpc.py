@@ -1,6 +1,5 @@
 """Discord Rich Presence integration via pypresence.
 
-
 Graceful no-op when pypresence isn't installed or Discord isn't running.
 The controller is meant to be called from the main (UI) thread — each call
 is a quick local IPC write to Discord's named pipe, well under 1ms.
@@ -11,9 +10,6 @@ To enable:
      in ~/.config/theia-player/player.toml
 """
 
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
-
 from __future__ import annotations
 
 import time
@@ -23,7 +19,6 @@ try:
     from pypresence import Presence  # type: ignore[import-untyped]
 except ImportError:
     DISCORD_AVAILABLE = False
-
 
 class DiscordController:
     def __init__(self, app_id: str) -> None:
@@ -93,7 +88,6 @@ class DiscordController:
                 pass
         self._rpc = None
         self._connected = False
-
 
 def create(app_id: str, enabled: bool = True) -> DiscordController:
     ctrl = DiscordController(app_id)

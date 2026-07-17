@@ -1,14 +1,10 @@
 """The play queue — ordering, shuffle, and repeat live here, not in the UI.
 
-
 The queue's `songs` list IS the play order (what the queue panel shows is
 exactly what will play). Toggling shuffle on keeps the current track first
 and shuffles the rest; toggling it off restores the original order with the
 current track still current.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -16,7 +12,6 @@ import random
 from enum import Enum
 
 from theiaplayer.models import Song
-
 
 class Repeat(Enum):
     OFF = "off"
@@ -26,7 +21,6 @@ class Repeat(Enum):
     def next(self) -> "Repeat":
         order = [Repeat.OFF, Repeat.ALL, Repeat.ONE]
         return order[(order.index(self) + 1) % len(order)]
-
 
 class PlayQueue:
     def __init__(self) -> None:

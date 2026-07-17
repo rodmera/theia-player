@@ -114,7 +114,7 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 El proyecto cuenta con dos suites de pruebas para garantizar el funcionamiento y robustez del reproductor:
 
 ### 1. Pruebas Unitarias (`pytest`)
-Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones, etc.):
+Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones, dataclasses de dominio, contrato de `BINDINGS`, driver de audio, guardas de MPRIS, etc.):
 ```sh
 .venv/bin/python3 -m pytest
 ```

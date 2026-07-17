@@ -1,6 +1,5 @@
 """Async Subsonic/OpenSubsonic client for Navidrome.
 
-
 Auth is the salted-token scheme: we store md5(password + salt) and the salt,
 never the password itself. All calls go through `_get`, which unwraps the
 `subsonic-response` envelope and raises `SubsonicError` on failure.
@@ -8,9 +7,6 @@ never the password itself. All calls go through `_get`, which unwraps the
 Cover art is fetched once and kept as files under the app cache dir, so art
 for anything you've already looked at renders instantly and offline.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -27,10 +23,8 @@ from theiaplayer.models import Album, Artist, Playlist, SearchResults, Song
 API_VERSION = "1.16.1"
 CLIENT_NAME = "theia-player"
 
-
 class SubsonicError(Exception):
     """Server said no (bad auth, missing id, …)."""
-
 
 def make_token(password: str) -> tuple[str, str]:
     """Return (token, salt) for the salted md5 auth scheme."""
@@ -38,13 +32,11 @@ def make_token(password: str) -> tuple[str, str]:
     token = hashlib.md5((password + salt).encode()).hexdigest()
     return token, salt
 
-
 def normalize_server(url: str) -> str:
     url = url.strip().rstrip("/")
     if url and "://" not in url:
         url = "https://" + url
     return url
-
 
 class SubsonicClient:
     def __init__(self, server: str, username: str, token: str, salt: str, art_dir: Path) -> None:

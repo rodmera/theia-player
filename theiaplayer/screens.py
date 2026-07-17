@@ -1,13 +1,9 @@
 """Screens and modals: first-run onboarding and global search.
 
-
 Onboarding follows the kit doctrine — never dump a new user into an empty
 screen with an error toast. Credentials are validated live against the
 server and only stored (chmod 600) once a ping succeeds.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -28,7 +24,6 @@ from theiaplayer.api import SubsonicError, make_token, normalize_server
 from theiaplayer.models import SearchResults
 from theiaplayer.widgets import Logo, Visualizer
 
-
 def settle_pop_in(screen, box_selector: str) -> None:
     """textual 8 sharp edge: `Widget.visual_style` caches the blended text
     background while an ancestor's opacity is still animating (the cache key
@@ -41,7 +36,6 @@ def settle_pop_in(screen, box_selector: str) -> None:
             widget.refresh()
 
     screen.set_timer(0.25, bust)
-
 
 class OnboardingScreen(Screen):
     """Server + credentials, validated live. Dismisses with the config dict."""
@@ -166,7 +160,6 @@ class OnboardingScreen(Screen):
     def action_quit_app(self) -> None:
         self.app.exit()
 
-
 class InputModal(ModalScreen):
     """One-line text prompt (e.g. a new playlist name). Dismisses with the
     entered string, or None on escape."""
@@ -206,7 +199,6 @@ class InputModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
-
 
 class LyricsModal(ModalScreen):
     """Scrollable lyrics overlay. Dismiss with Escape or q."""
@@ -334,7 +326,6 @@ class LyricsModal(ModalScreen):
 
     def action_app_seek_fwd_big(self) -> None:
         self.app.action_seek(30)
-
 
 class SearchModal(ModalScreen):
     """Global search over artists, albums and songs — debounced, grouped.
@@ -484,7 +475,6 @@ class SearchModal(ModalScreen):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-
 class ServerSwitcherModal(ModalScreen):
     """Modal to switch between different server profiles."""
 
@@ -535,7 +525,6 @@ class ServerSwitcherModal(ModalScreen):
         Binding("escape", "cancel", show=False),
         Binding("q", "cancel", show=False),
     ]
-
 
 class AudioDeviceSwitcherModal(ModalScreen):
     """Modal to switch between different audio output devices."""
@@ -590,7 +579,6 @@ class AudioDeviceSwitcherModal(ModalScreen):
         Binding("q", "cancel", show=False),
     ]
 
-
 # ── Equalizer ─────────────────────────────────────────────────────────────────
 
 PRESETS: dict[str, list[float]] = {
@@ -602,7 +590,6 @@ PRESETS: dict[str, list[float]] = {
     "electronic": [5.0, 4.0, 1.0, 0.0, -1.0, 2.0, 1.0, 3.0, 4.0, 5.0],
     "classical":  [4.0, 3.0, 2.0, 2.0, -1.0, -1.0, 0.0, 2.0, 3.0, 4.0],
 }
-
 
 class EqualizerBand(Static):
     """A vertical column representing a single frequency band in the EQ."""
@@ -643,7 +630,6 @@ class EqualizerBand(Static):
             self.gain = max(-12.0, min(12.0, float(step)))
             self.refresh()
             self.screen.on_band_changed(self)
-
 
 class EqualizerModal(ModalScreen):
     """An interactive 10-band software parametric equalizer modal."""

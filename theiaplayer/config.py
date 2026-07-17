@@ -1,12 +1,8 @@
 """Player configuration — player.toml alongside the server credentials file.
 
-
 Parsed once at startup; never mutated at runtime (restart to apply changes).
 Falls back to safe defaults if the file is absent or malformed.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -140,7 +136,6 @@ def _normalize_keybinds(overrides: dict) -> dict:
     overrides["keybinds"] = flat_keybinds
     return overrides
 
-
 def load(config_dir: Path) -> dict:
     """Return merged config: defaults + whatever player.toml overrides."""
     cfg: dict = {
@@ -170,7 +165,6 @@ def load(config_dir: Path) -> dict:
         else:
             cfg[k] = v
     return cfg
-
 
 def write_default(config_dir: Path) -> None:
     """Write a comprehensive commented player.toml on first run."""
@@ -259,7 +253,6 @@ def write_default(config_dir: Path) -> None:
         "# bands = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]\n"
     )
 
-
 # ── filter ───────────────────────────────────────────────────────────────────
 
 def filter_songs(songs: list, filters: dict) -> list:
@@ -294,7 +287,6 @@ def filter_songs(songs: list, filters: dict) -> list:
         return True
 
     return [s for s in songs if keep(s)]
-
 
 # ── binding builder ───────────────────────────────────────────────────────────
 

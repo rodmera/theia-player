@@ -1,14 +1,10 @@
 """NaviTui's animated widgets.
 
-
 One shared 8fps heartbeat in the app calls `.tick()` on each of these; every
 widget only repaints its own few cells, so the constant motion costs almost
 nothing. Colors are read from `ricekit.palette` at render time so a theme
 switch restyles every animation live.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -29,7 +25,6 @@ REPEAT_ICON = "\uf01e"  # nf-fa-repeat
 PLAY_GLYPH = "\uf04b"  # nf-fa-play
 PAUSE_GLYPH = "\uf04c"  # nf-fa-pause
 
-
 class ClickList(NavList):
     """Single click highlights (previews), double click selects (acts).
     Keyboard enter still selects instantly — only the mouse path changes."""
@@ -42,7 +37,6 @@ class ClickList(NavList):
             self.highlighted = clicked
             if getattr(event, "chain", 1) >= 2:
                 self.action_select()
-
 
 class Logo(Static):
     """The NaviTui wordmark with a constant shimmer sweeping across it."""
@@ -65,7 +59,6 @@ class Logo(Static):
         t.append_text(anim.shimmer("theia-player", self._phase, palette.mauve, palette.text))
         return t
 
-
 class Visualizer(Static):
     """Standalone EQ bars (used in the onboarding screen for flair)."""
 
@@ -80,7 +73,6 @@ class Visualizer(Static):
     def tick(self) -> None:
         self.model.tick()
         self.update(self.model.render())
-
 
 class NowPlaying(Static):
     """The two-line transport: viz + title marquee + star on top, smooth

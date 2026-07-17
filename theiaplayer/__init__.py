@@ -1,12 +1,8 @@
 """NaviTui — a fast, animated terminal player for Navidrome.
 
-
 Built on Textual and ricekit; playback via libmpv; cover art over the
 kitty/sixel graphics protocols with a unicode fallback.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -15,8 +11,7 @@ from __future__ import annotations
 # land before any consumer of textual_image (e.g. theiaplayer.art).
 from theiaplayer import terminal_probe  # noqa: F401
 
-__version__ = "1.8.1"
-
+__version__ = "1.8.2"
 
 def main() -> None:
     from theiaplayer.app import main as run

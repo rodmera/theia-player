@@ -38,17 +38,18 @@ A diferencia de `theia-subtui` (que invoca al reproductor CLI estándar por subp
 ```
 theiaplayer/app.py         layout, workers, playback glue, keybindings
 theiaplayer/api.py         cliente async Subsonic (httpx), token auth, cache de covers
-theiaplayer/player.py      wrapper libmpv + NullPlayer fallback si mpv no está
+theiaplayer/player.py      wrapper libmpv + NullPlayer fallback si mpv no está; choose_audio_driver()
 theiaplayer/playqueue.py   lógica de cola/shuffle/repeat — sin UI, puro lógica
-theiaplayer/config.py      carga player.toml; build_bindings() genera BINDINGS desde config
-theiaplayer/mpris.py       MPRIS2 D-Bus bidireccional (dbus-python); GLib loop en hilo daemon
+theiaplayer/config.py      carga player.toml; build_bindings(); filter_songs()
+theiaplayer/mpris.py       MPRIS2 D-Bus bidireccional (dbus-python); GLib loop en hilo daemon; _assert_threads_inited()
 theiaplayer/discord_rpc.py Discord Rich Presence via pypresence; no-op si no está instalado
 theiaplayer/anim.py        primitivas de animación: shimmer, smooth_bar, marquee, viz
 theiaplayer/widgets.py     Logo, Visualizer, NowPlaying (transport animado)
 theiaplayer/nowplaying_mac.py macOS NowPlaying y RemoteCommandCenter nativos (PyObjC)
-theiaplayer/art.py         widget CoverArt, detección de protocolo (kitty/sixel/halfcell)
+theiaplayer/art.py         widget CoverArt, cmyk_to_rgb_safe() + detección de protocolo (kitty/sixel/halfcell)
 theiaplayer/screens.py     onboarding, SearchModal, InputModal, LyricsModal
 theiaplayer/models.py      dataclasses Song/Album/Artist/Playlist con to_dict/from_dict
+theiaplayer/terminal_probe.py detección Ghostty/Kitty + monkey-patch de query_terminal_support (sixel/tgp) — corre auto al import del paquete
 tools/screenshots.py   generador SVG headless + FakeClient (sin red, sin datos reales)
 tools/demo.py          posa el app real para capturas (main/playlist/search/void)
 ```

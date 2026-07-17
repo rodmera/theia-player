@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "theia-player"
-version = "1.8.1"
+version = "1.8.2"
 description = "A fast, animated TUI player for Navidrome — cover art in the terminal, playback via mpv, themes via ricekit"
 readme = "README.md"
 license = { text = "MIT" }
@@ -65,3 +65,22 @@ reportOptionalContains = "none"
 reportOptionalOperand = "none"
 reportTypedDictNotRequiredAccess = "none"
 exclude = ["**/node_modules", "**/__pycache__", ".venv", "ricekit", "theia_player.egg-info", "tools"]
+
+# Configure `ty` (Astral's Python type checker, used by the pi-lsp
+# extension by default) to silence the same noise that pyright ignores:
+# libraries without stubs (textual, ricekit, dbus-python, textual-image)
+# plus the optional/None-union narrowing that's hard to express in plain
+# dataclasses. Runtime and tests are unaffected — DX-only.
+[tool.ty.src]
+include = ["theiaplayer", "tests"]
+exclude = ["ricekit", "tools"]
+
+[tool.ty.rules]
+"not-iterable"             = "ignore"
+"unresolved-attribute"     = "ignore"
+"unresolved-import"        = "ignore"
+"unresolved-reference"     = "ignore"
+"invalid-argument-type"    = "ignore"
+"no-matching-overload"     = "ignore"
+"invalid-assignment"       = "ignore"
+"unsupported-base"         = "ignore"

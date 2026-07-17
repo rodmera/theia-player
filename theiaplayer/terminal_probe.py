@@ -1,6 +1,5 @@
 """Centralized terminal protocol detection.
 
-
 Two TTY/ANSI workarounds used to live scattered across the codebase:
 
 - ``art.py`` monkey-patched ``sixel.query_terminal_support`` and
@@ -15,15 +14,11 @@ consumer (``art.py``, ``app.py``, tests) gets the patching for free without
 having to know the details. The function is idempotent.
 """
 
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
-
 from __future__ import annotations
 
 import os
 
 _PROBED = False
-
 
 def is_kitty_compatible() -> bool:
     """Return True if the running terminal is Ghostty or Kitty."""
@@ -32,11 +27,9 @@ def is_kitty_compatible() -> bool:
         return True
     return os.environ.get("TERM") == "xterm-kitty"
 
-
 def current_protocol() -> str:
     """Return the resolved ``NAVITUI_ART`` value (``auto`` if unset)."""
     return os.environ.get("NAVITUI_ART", "auto").lower()
-
 
 def _force_protocol_for_terminal() -> None:
     """On Ghostty/Kitty, force ``NAVITUI_ART=tgp`` unless the user set it."""
@@ -44,7 +37,6 @@ def _force_protocol_for_terminal() -> None:
         return
     if is_kitty_compatible():
         os.environ["NAVITUI_ART"] = "tgp"
-
 
 def _disable_textual_image_tty_queries() -> None:
     """Pre-import sixel/tgp and force their TTY probes to False.
@@ -65,7 +57,6 @@ def _disable_textual_image_tty_queries() -> None:
         # to its own try/except. Never let terminal probing break startup.
         pass
 
-
 def probe() -> None:
     """Run terminal detection and patching. Idempotent and safe to re-call."""
     global _PROBED
@@ -74,7 +65,6 @@ def probe() -> None:
     _PROBED = True
     _force_protocol_for_terminal()
     _disable_textual_image_tty_queries()
-
 
 # Auto-run on import so callers don't have to remember to call probe().
 probe()

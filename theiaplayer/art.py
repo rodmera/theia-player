@@ -9,9 +9,6 @@ must never be the reason the player doesn't start (headless terminals,
 multiplexers and ssh all get the fallback or the placeholder).
 """
 
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
-
 from __future__ import annotations
 
 import os
@@ -23,7 +20,6 @@ from textual.widgets import Static
 
 from ricekit import palette
 from ricekit.widgets import pop_in
-
 
 def cmyk_to_rgb_safe(path: Path) -> bool:
     """Convert a CMYK image at ``path`` to RGB in place.
@@ -48,7 +44,6 @@ def cmyk_to_rgb_safe(path: Path) -> bool:
     except Exception:
         return False
 
-
 def _image_class():
     # The blocking TTY probes of textual_image are already neutralized at
     # package import time by ``theiaplayer.terminal_probe`` (Ghostty/Kitty
@@ -69,7 +64,6 @@ def _image_class():
         }.get(kind, tiw.Image)
     except Exception:
         return None
-
 
 class CoverArt(Vertical):
     """The album-art panel. `show(path)` swaps the image with a fade;

@@ -1,6 +1,5 @@
 """NaviTui — the app.
 
-
 Songs-first: one sidebar of ways-to-list-tracks (views + playlists), one big
 tracks pane, cover + queue on the right. No tabs, no album browsing — albums
 and artists only exist inside search.
@@ -10,9 +9,6 @@ instantly, then a worker fetches fresh rows and swaps them in silently.
 One 8fps heartbeat drives every animation (logo shimmer, visualizer,
 progress pulse, marquee, spinners); each tick repaints only a few cells.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -1711,7 +1707,6 @@ class TheIAPlayerApp(KitApp):
         except Exception:
             pass
 
-
 def watchdog_thread() -> None:
     import time
     import os
@@ -1737,7 +1732,6 @@ def watchdog_thread() -> None:
         except Exception:
             pass
         os._exit(1)
-
 
 def main() -> None:
     import os
@@ -1783,7 +1777,6 @@ def main() -> None:
         sys.stderr.write(f"\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
         traceback.print_exc()
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,5 @@
 """Playback engine — a thin, thread-aware wrapper around libmpv.
 
-
 mpv does the heavy lifting (HTTP streaming, every codec, seeking, volume);
 we observe `time-pos`/`duration` and the `end-file` event. mpv fires those
 callbacks on its own event thread, so the app schedules UI work with
@@ -10,9 +9,6 @@ callbacks on its own event thread, so the app schedules UI work with
 If libmpv isn't installed the app still runs (browse, search, queue); it
 just tells you how to get sound on your OS.
 """
-
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
 
 from __future__ import annotations
 
@@ -33,7 +29,6 @@ INSTALL_HINTS = (
     "  macos:   brew install mpv\n"
     "  windows: place libmpv-2.dll on PATH (mpv.io/installation)"
 )
-
 
 class Player:
     """One mpv instance for the life of the app.
@@ -250,7 +245,6 @@ class Player:
         except Exception:
             pass
 
-
 class NullPlayer:
     """Stands in when libmpv is missing so the rest of the app still works."""
 
@@ -303,7 +297,6 @@ class NullPlayer:
     def terminate(self) -> None:
         pass
 
-
 def create_player(
     on_position,
     on_track_end,
@@ -329,7 +322,6 @@ def create_player(
         replaygain_fallback=replaygain_fallback,
         audio_exclusive=audio_exclusive,
     )
-
 
 def choose_audio_driver(ao: str | None, platform: str | None = None) -> str | None:
     """Pick the mpv ``--ao`` driver to use, given an explicit override.

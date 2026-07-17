@@ -1,18 +1,13 @@
 """Domain models — thin dataclasses over the Subsonic JSON shapes.
 
-
 Every model round-trips through plain dicts (`to_dict`/`from_dict`) so the
 whole library can live in the AppDirs JSON cache and render instantly on
 the next launch.
 """
 
-# pyright: reportMissingImports=false, reportUndefinedVariable=false, reportOptionalMemberAccess=false, reportOptionalIterable=false, reportOptionalOperand=false, reportTypedDictNotRequiredAccess=false, reportMissingTypeStubs=false, reportArgumentType=false, reportCallIssue=false, reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
-
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-
 
 @dataclass
 class Artist:
@@ -38,7 +33,6 @@ class Artist:
     @classmethod
     def from_dict(cls, d: dict) -> "Artist":
         return cls(**d)
-
 
 @dataclass
 class Album:
@@ -74,7 +68,6 @@ class Album:
     @classmethod
     def from_dict(cls, d: dict) -> "Album":
         return cls(**d)
-
 
 @dataclass
 class Song:
@@ -125,7 +118,6 @@ class Song:
     def from_dict(cls, d: dict) -> "Song":
         return cls(**d)
 
-
 @dataclass
 class Playlist:
     id: str
@@ -150,7 +142,6 @@ class Playlist:
     @classmethod
     def from_dict(cls, d: dict) -> "Playlist":
         return cls(**d)
-
 
 @dataclass
 class SearchResults:
