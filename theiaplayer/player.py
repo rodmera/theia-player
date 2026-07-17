@@ -313,12 +313,7 @@ def create_player(
     if not MPV_AVAILABLE:
         return NullPlayer()
         
-    # On Linux, default the Audio Output (ao) to "pipewire" if not specified,
-    # as the native pipewire driver fully supports direct, native device targeting 
-    # (allowing ctrl+d to work flawlessly and bypass system-wide routing).
-    import sys
-    if ao is None and sys.platform != "darwin":
-        ao = "pipewire"
+    ao = choose_audio_driver(ao)
 
     return Player(
         on_position,
@@ -330,3 +325,26 @@ def create_player(
         replaygain_fallback=replaygain_fallback,
         audio_exclusive=audio_exclusive,
     )
+
+
+def choose_audio_driver(ao: str | None, platform: str | None = None) -> str | None:
+    """Pick the mpv ``--ao`` driver to use, given an explicit override.
+
+    On Linux, defaults to ``"pipewire"`` — the native pipewire driver
+    supports direct device targeting (so ``ctrl+d`` can address a specific
+    sink) and runs Bluetooth streams reliably with the 150ms buffer set in
+    :class:`Player`. Was previously ``"pulse"`` (see commit ``0a12bbd`` for
+    the revert); kept as a named function so flipping the default is a
+    one-line change and is unit-testable.
+
+    On macOS, leaves the value ``None`` so mpv falls back to its native
+    CoreAudio backend. An explicit ``ao`` value always wins.
+    """
+    if ao is not None:
+        return ao
+    if platform is None:
+        import sys
+        platform = sys.platform
+    if platform == "darwin":
+        return None
+    return "pipewire"

@@ -566,30 +566,13 @@ class TheIAPlayerApp(KitApp):
         return VIEW_LABELS.get(view_id, "tracks")
 
     def _apply_filters(self, songs: list[Song]) -> list[Song]:
-        f = self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS)
-        exclude_titles = [t.lower() for t in f.get("exclude_titles", [])]
-        exclude_artists = [a.lower() for a in f.get("exclude_artists", [])]
-        exclude_genres = [g.lower() for g in f.get("exclude_genres", [])]
-        min_dur = int(f.get("min_duration", 0))
-        max_dur = int(f.get("max_duration", 0))
-        min_plays = int(f.get("min_play_count", 0))
-
-        def keep(s: Song) -> bool:
-            if exclude_titles and any(t in s.title.lower() for t in exclude_titles):
-                return False
-            if exclude_artists and s.artist.lower() in exclude_artists:
-                return False
-            if exclude_genres and s.genre.lower() in exclude_genres:
-                return False
-            if min_dur and s.duration <= min_dur:
-                return False
-            if max_dur and s.duration >= max_dur:
-                return False
-            if min_plays and s.play_count < min_plays:
-                return False
-            return True
-
-        return [s for s in songs if keep(s)]
+        # Pure filter logic lives in ``playerconfig.filter_songs`` so the
+        # Auto DJ / autoplay path shares the same source of truth (regression
+        # caught in tests/test_filter_songs.py).
+        return playerconfig.filter_songs(
+            songs,
+            self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS),
+        )
 
     def _show_songs(self, songs: list[Song], title: str) -> None:
         self._songs = self._apply_filters(songs)

@@ -18,17 +18,39 @@ import threading
 from typing import TYPE_CHECKING
 
 MPRIS_AVAILABLE = True
+# Tracks whether ``dbus.mainloop.glib.threads_init()`` was actually called
+# during the import below. Used by ``_assert_threads_inited`` to fail fast
+# (instead of silently deadlocking) if a future refactor drops the call.
+_THREADS_INITED = False
 try:
     import dbus
     import dbus.service
     import dbus.mainloop.glib
     from dbus.mainloop.glib import DBusGMainLoop
     from gi.repository import GLib
-    
+
     # Habilitar soporte multihilo nativo en D-Bus/GLib de forma obligatoria
     dbus.mainloop.glib.threads_init()
+    _THREADS_INITED = True
 except Exception:
     MPRIS_AVAILABLE = False
+
+
+def _assert_threads_inited() -> None:
+    """Raise if dbus-python was imported but ``threads_init()`` wasn't called.
+
+    dbus-python REQUIRES ``dbus.mainloop.glib.threads_init()`` in the main
+    thread before any ``dbus.SessionBus()`` is instantiated from a secondary
+    Python thread. Without it the GLib loop deadlocks on startup and the app
+    hangs in black on launch. This guard turns that silent freeze into an
+    actionable error if a future refactor drops the module-level call.
+    """
+    if MPRIS_AVAILABLE and not _THREADS_INITED:
+        raise RuntimeError(
+            "dbus.mainloop.glib.threads_init() was not called during theiaplayer.mpris import. "
+            "Without it, the MPRIS background thread deadlocks on startup. "
+            "This is a regression — see CLAUDE.md 'Hilos en dbus-python' gotcha."
+        )
 
 if TYPE_CHECKING:
     from theiaplayer.models import Song
@@ -195,6 +217,7 @@ class MprisController:
 
     def _run_loop(self) -> None:
         try:
+            _assert_threads_inited()
             DBusGMainLoop(set_as_default=True)
             bus = dbus.SessionBus()
             MprisService = _define_service(self._callbacks)

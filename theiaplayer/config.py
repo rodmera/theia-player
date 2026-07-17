@@ -256,6 +256,42 @@ def write_default(config_dir: Path) -> None:
     )
 
 
+# ── filter ───────────────────────────────────────────────────────────────────
+
+def filter_songs(songs: list, filters: dict) -> list:
+    """Pure filter: apply the user-configured filter dict to a list of songs.
+
+    Centralizes the filtering logic so the app instance method
+    ``TheIAPlayerApp._apply_filters`` and the Auto DJ / autoplay path can
+    share a single source of truth. Previously, Auto DJ was inlining
+    ``playerconfig.apply_filters(songs, f)`` (which didn't exist as a
+    function — leading to commit ``f8a9ee3``'s silent ``AttributeError``).
+    """
+    exclude_titles = [t.lower() for t in filters.get("exclude_titles", [])]
+    exclude_artists = [a.lower() for a in filters.get("exclude_artists", [])]
+    exclude_genres = [g.lower() for g in filters.get("exclude_genres", [])]
+    min_dur = int(filters.get("min_duration", 0))
+    max_dur = int(filters.get("max_duration", 0))
+    min_plays = int(filters.get("min_play_count", 0))
+
+    def keep(s) -> bool:
+        if exclude_titles and any(t in s.title.lower() for t in exclude_titles):
+            return False
+        if exclude_artists and s.artist.lower() in exclude_artists:
+            return False
+        if exclude_genres and s.genre.lower() in exclude_genres:
+            return False
+        if min_dur and s.duration <= min_dur:
+            return False
+        if max_dur and s.duration >= max_dur:
+            return False
+        if min_plays and s.play_count < min_plays:
+            return False
+        return True
+
+    return [s for s in songs if keep(s)]
+
+
 # ── binding builder ───────────────────────────────────────────────────────────
 
 def build_bindings(keybinds: dict):

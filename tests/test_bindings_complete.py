@@ -49,7 +49,8 @@ _ALIASES: dict[str, str] = {
 
 def _expected_actions() -> dict[str, str]:
     """Build {action_string: key_name} from DEFAULT_KEYBINDS."""
-    return {_ALIASES.get(key, key): key for key in playerconfig.DEFAULT_KEYBINDS}  # type: ignore[arg-type]
+    keybinds: dict[str, str] = playerconfig.DEFAULT_KEYBINDS  # type: ignore[assignment]
+    return {_ALIASES.get(k, k): k for k in keybinds}
 
 
 def _binding_action_name(action: str) -> str:

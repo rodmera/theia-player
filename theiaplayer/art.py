@@ -21,6 +21,30 @@ from ricekit import palette
 from ricekit.widgets import pop_in
 
 
+def cmyk_to_rgb_safe(path: Path) -> bool:
+    """Convert a CMYK image at ``path`` to RGB in place.
+
+    ``textual-image`` fails to render PNGs converted from CMYK source JPEGs
+    (raises ``OSError: cannot write mode CMYK as PNG`` in
+    ``PixelData.to_base64()``). Subsonic occasionally serves CMYK cover art,
+    so we normalize it on download and on cache-hit.
+
+    Returns True if conversion actually ran, False if the image was already
+    RGB, the path was unreadable, or PIL/the conversion raised. Never raises
+    — callers should treat the function as fire-and-forget so a broken cover
+    can't kill the player UI.
+    """
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            if im.mode == "CMYK":
+                im.convert("RGB").save(path, im.format or "JPEG")
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def _image_class():
     # The blocking TTY probes of textual_image are already neutralized at
     # package import time by ``theiaplayer.terminal_probe`` (Ghostty/Kitty
