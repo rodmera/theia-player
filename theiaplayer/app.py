@@ -618,24 +618,33 @@ class TheIAPlayerApp(KitApp):
     async def _fetch_songs_for_view(self, view_id: str) -> list[Song]:
         if view_id == "home":
             try:
-                res = await asyncio.gather(
-                    self.client.get_random_songs(size=10),
-                    self.client.get_songs_by_albums("newest"),
-                    self.client.get_songs_by_albums("frequent"),
-                    return_exceptions=True
-                )
-                randoms = res[0] if isinstance(res[0], list) else []
-                newest = res[1] if isinstance(res[1], list) else []
-                frequent = res[2] if isinstance(res[2], list) else []
-                newest = newest[:10]
-                frequent = frequent[:10]
-                seen_ids = set()
-                mixed_songs = []
-                for song in randoms + frequent + newest:
-                    if song.id not in seen_ids:
-                        seen_ids.add(song.id)
-                        mixed_songs.append(song)
-                return mixed_songs
+                # 1. Fetch recent albums to pick the Album of the Day
+                album_list = await self.client.get_album_list("recent", size=30)
+                if not album_list:
+                    return []
+                
+                # Consistent daily seed so the Album of the Day stays stable for 24 hours
+                import time, random
+                today_str = time.strftime("%Y-%m-%d")
+                rng = random.Random(today_str)
+                selected_album = rng.choice(album_list)
+                
+                # 2. Fetch songs of that selected album
+                songs = await self.client.get_album_songs(selected_album.id)
+                
+                # 3. Handle Album Spotlight trivia
+                self._current_spotlight_album_id = selected_album.id
+                cache_key = f"spotlight-{selected_album.id}"
+                cached = self.dirs.read_cache(cache_key)
+                
+                if cached and "text" in cached:
+                    self._current_spotlight_text = cached["text"]
+                else:
+                    self._current_spotlight_text = "Cargando detalles y datos fascinantes sobre este álbum de fondo via Gemini..."
+                    # Fetch from Gemini asynchronously in the background
+                    self._fetch_spotlight_trivia_async(selected_album.id, selected_album.name, selected_album.artist)
+                    
+                return songs
             except Exception:
                 return []
         elif view_id in ("all-songs", "shuffle-all"):
@@ -648,6 +657,43 @@ class TheIAPlayerApp(KitApp):
             pid = view_id.split(":", 1)[1]
             return await self.client.get_playlist_songs(pid)
         return []
+
+    @work(exclusive=True, group="spotlight_gen")
+    async def _fetch_spotlight_trivia_async(self, album_id: str, album_name: str, artist_name: str) -> None:
+        try:
+            def run_gemini():
+                from google import genai
+                client = genai.Client()
+                prompt = (
+                    f"Dame un dato curioso, anécdota de grabación o trivia interesante en un solo párrafo "
+                    f"de no más de 3-4 líneas (en español neutro) sobre el álbum '{album_name}' del artista '{artist_name}'. "
+                    f"Sé sumamente conciso, directo y fascinante. Evita preámbulos o saludos."
+                )
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
+                return response.text.strip()
+
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(None, run_gemini)
+            
+            if text:
+                cache_key = f"spotlight-{album_id}"
+                self.dirs.write_cache(cache_key, {
+                    "text": text,
+                    "album": album_name,
+                    "artist": artist_name
+                })
+                if getattr(self, "_current_spotlight_album_id", None) == album_id:
+                    self._current_spotlight_text = text
+                    if self.view == "home":
+                        self._render_home_spotlight()
+        except Exception:
+            pass
+
+    def _render_home_spotlight(self) -> None:
+        self._show_songs(self._songs, "home · spotlight")
 
     @work(exclusive=True, group="songs")
     async def _play_view_from_top(self, view_id: str) -> None:
@@ -680,7 +726,30 @@ class TheIAPlayerApp(KitApp):
         self._songs = self._apply_filters(songs)
         panel = self.query_one("#tracks-panel")
         panel.border_title = title
-        self._fill("#tracks-list", [self._song_row(s) for s in self._songs], "#tracks-panel")
+        
+        options = []
+        if self.view == "home" and getattr(self, "_current_spotlight_text", None):
+            spotlight_text = self._current_spotlight_text
+            options.append(Option(Text(""), disabled=True))
+            options.append(Option(Text("  📌 ALBUM SPOTLIGHT  ", style=f"reverse bold {palette.peach}"), disabled=True))
+            options.append(Option(Text(""), disabled=True))
+            
+            import textwrap
+            width = 62  # responsive standard read width
+            wrapped_lines = textwrap.wrap(spotlight_text, width=width)
+            for line in wrapped_lines:
+                options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
+                
+            options.append(Option(Text(""), disabled=True))
+            options.append(Option(Text("  Presiona [Enter] abajo para escuchar este Álbum del Día:", style=palette.dim), disabled=True))
+            options.append(Option(Text(""), disabled=True))
+            options.append(Option(Text("  " + "─" * width, style=palette.faint), disabled=True))
+            options.append(Option(Text(""), disabled=True))
+
+        for s in self._songs:
+            options.append(self._song_row(s))
+
+        self._fill("#tracks-list", options, "#tracks-panel")
 
     @work(exclusive=True, group="songs")
     async def _load_view(self, view_id: str) -> None:
