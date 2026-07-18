@@ -992,14 +992,68 @@ class TheIAPlayerApp(KitApp):
                 songs = await self.client.get_random_songs(size=15)
             songs = self._apply_filters(songs)
             if songs:
-                self.queue.add(songs)
-                self._render_queue()
-                self._persist_queue()
-                self.notify(f"Auto DJ: {len(songs)} similar songs enqueued", timeout=3)
+                # If queue became empty during fetch, don't auto-enqueue old results
+                if not self.queue.songs:
+                    return
+
+                # Exclude songs already in the queue to prevent duplicates
+                existing_ids = {s.id for s in self.queue.songs}
+                songs = [s for s in songs if s.id not in existing_ids]
+
+                if songs:
+                    # Get the artist of the last track to avoid playing the same artist consecutively
+                    last_artist = self.queue.songs[-1].artist if self.queue.songs else (seed.artist if seed else None)
+                    songs = self._reorder_for_artist_diversity(songs, last_artist)
+
+                if songs:
+                    self.queue.add(songs)
+                    self._render_queue()
+                    self._persist_queue()
+                    self.notify(f"Auto DJ: {len(songs)} similar songs enqueued", timeout=3)
         except Exception:
             pass
         finally:
             self._autoplay_loading = False
+
+    def _reorder_for_artist_diversity(self, songs: list[Song], last_artist: str | None = None) -> list[Song]:
+        if not songs:
+            return []
+        
+        # Group songs by artist (case-insensitive & trimmed)
+        by_artist: dict[str, list[Song]] = {}
+        for s in songs:
+            key = s.artist.lower().strip() if s.artist else ""
+            by_artist.setdefault(key, []).append(s)
+            
+        # Sort artists by frequency (descending) so we process most frequent first
+        sorted_artists = sorted(by_artist.keys(), key=lambda k: len(by_artist[k]), reverse=True)
+        
+        result: list[Song] = []
+        prev_artist = last_artist.lower().strip() if last_artist else None
+        
+        while any(by_artist.values()):
+            chosen_artist = None
+            # Find an artist that has songs and is different from the previous one
+            for art in sorted_artists:
+                if by_artist[art] and art != prev_artist:
+                    chosen_artist = art
+                    break
+            
+            # Fallback: if no other artist has available songs, pick the first available
+            if chosen_artist is None:
+                for art in sorted_artists:
+                    if by_artist[art]:
+                        chosen_artist = art
+                        break
+            
+            if chosen_artist is None:
+                break
+                
+            song = by_artist[chosen_artist].pop(0)
+            result.append(song)
+            prev_artist = chosen_artist
+            
+        return result
 
     def _filter_and_show_artist_songs(self) -> None:
         if not self.view.startswith("artist:"):
