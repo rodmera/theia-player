@@ -722,11 +722,7 @@ class TheIAPlayerApp(KitApp):
             self._pcfg.get("filters", playerconfig.DEFAULT_FILTERS),
         )
 
-    def _show_songs(self, songs: list[Song], title: str) -> None:
-        self._songs = self._apply_filters(songs)
-        panel = self.query_one("#tracks-panel")
-        panel.border_title = title
-        
+    def _get_tracks_options(self) -> list[Option]:
         options = []
         if self.view == "home" and getattr(self, "_current_spotlight_text", None):
             spotlight_text = self._current_spotlight_text
@@ -748,8 +744,14 @@ class TheIAPlayerApp(KitApp):
 
         for s in self._songs:
             options.append(self._song_row(s))
+            
+        return options
 
-        self._fill("#tracks-list", options, "#tracks-panel")
+    def _show_songs(self, songs: list[Song], title: str) -> None:
+        self._songs = self._apply_filters(songs)
+        panel = self.query_one("#tracks-panel")
+        panel.border_title = title
+        self._fill("#tracks-list", self._get_tracks_options(), "#tracks-panel")
 
     @work(exclusive=True, group="songs")
     async def _load_view(self, view_id: str) -> None:
@@ -983,7 +985,7 @@ class TheIAPlayerApp(KitApp):
 
     def _refresh_song_markers(self) -> None:
         """Re-render the tracks pane so the ♪ marker follows the player."""
-        self._fill("#tracks-list", [self._song_row(s) for s in self._songs])
+        self._fill("#tracks-list", self._get_tracks_options())
 
     def action_play_pause(self) -> None:
         if self.player.active:
