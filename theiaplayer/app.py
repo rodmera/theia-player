@@ -665,9 +665,17 @@ class TheIAPlayerApp(KitApp):
                 from google import genai
                 client = genai.Client()
                 prompt = (
-                    f"Dame un dato curioso, anécdota de grabación o trivia interesante en un solo párrafo "
-                    f"de no más de 3-4 líneas (en español neutro) sobre el álbum '{album_name}' del artista '{artist_name}'. "
-                    f"Sé sumamente conciso, directo y fascinante. Evita preámbulos o saludos."
+                    f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
+                    f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
+                    f"{{\n"
+                    f"  \"album\": \"Nombre del álbum\",\n"
+                    f"  \"artist\": \"Nombre del artista\",\n"
+                    f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
+                    f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
+                    f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
+                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\"\n"
+                    f"}}\n"
+                    f"Sé sumamente preciso y verídico históricamente en los datos."
                 )
                 response = client.models.generate_content(
                     model="gemini-3.5-flash",
@@ -679,14 +687,34 @@ class TheIAPlayerApp(KitApp):
             text = await loop.run_in_executor(None, run_gemini)
             
             if text:
+                import json
+                cleaned_text = text.strip()
+                if cleaned_text.startswith("```"):
+                    lines_text = cleaned_text.splitlines()
+                    if lines_text[0].startswith("```"):
+                        lines_text = lines_text[1:]
+                    if lines_text[-1].startswith("```"):
+                        lines_text = lines_text[:-1]
+                    cleaned_text = "\n".join(lines_text).strip()
+                
+                try:
+                    data = json.loads(cleaned_text)
+                except Exception:
+                    # Fallback to plain text structure if JSON parse fails
+                    data = {
+                        "album": album_name,
+                        "artist": artist_name,
+                        "year": "N/A",
+                        "label": "N/A",
+                        "genre": "N/A",
+                        "trivia": cleaned_text
+                    }
+                    
                 cache_key = f"spotlight-{album_id}"
-                self.dirs.write_cache(cache_key, {
-                    "text": text,
-                    "album": album_name,
-                    "artist": artist_name
-                })
+                self.dirs.write_cache(cache_key, data)
+                
                 if getattr(self, "_current_spotlight_album_id", None) == album_id:
-                    self._current_spotlight_text = text
+                    self._current_spotlight_text = data.get("trivia", "")
                     if self.view == "home":
                         self._render_home_spotlight()
         except Exception:
@@ -724,22 +752,48 @@ class TheIAPlayerApp(KitApp):
 
     def _get_tracks_options(self) -> list[Option]:
         options = []
-        if self.view == "home" and getattr(self, "_current_spotlight_text", None):
-            spotlight_text = self._current_spotlight_text
+        if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
+            cache_key = f"spotlight-{self._current_spotlight_album_id}"
+            cached = self.dirs.read_cache(cache_key)
+            
             options.append(Option(Text(""), disabled=True))
             options.append(Option(Text("  📌 ALBUM SPOTLIGHT  ", style=f"reverse bold {palette.peach}"), disabled=True))
             options.append(Option(Text(""), disabled=True))
             
-            import textwrap
-            width = 62  # responsive standard read width
-            wrapped_lines = textwrap.wrap(spotlight_text, width=width)
-            for line in wrapped_lines:
-                options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
+            if cached:
+                # Structured metadata
+                album = cached.get("album", "N/A")
+                artist = cached.get("artist", "N/A")
+                year = cached.get("year", "N/A")
+                label = cached.get("label", "N/A")
+                genre = cached.get("genre", "N/A")
+                trivia = cached.get("trivia", cached.get("text", ""))
+                
+                options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
+                options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
+                options.append(Option(Text(f"  📅 Año:     {year}", style=palette.dim), disabled=True))
+                options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.dim), disabled=True))
+                options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.dim), disabled=True))
+                options.append(Option(Text(""), disabled=True))
+                
+                import textwrap
+                width = 62  # responsive standard read width
+                wrapped_lines = textwrap.wrap(trivia, width=width)
+                for line in wrapped_lines:
+                    options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
+            else:
+                # Loading state or fallback to temporary text
+                spotlight_text = getattr(self, "_current_spotlight_text", "Cargando detalles...")
+                import textwrap
+                width = 62
+                wrapped_lines = textwrap.wrap(spotlight_text, width=width)
+                for line in wrapped_lines:
+                    options.append(Option(Text(f"  {line}", style=palette.dim), disabled=True))
                 
             options.append(Option(Text(""), disabled=True))
             options.append(Option(Text("  Presiona [Enter] abajo para escuchar este Álbum del Día:", style=palette.dim), disabled=True))
             options.append(Option(Text(""), disabled=True))
-            options.append(Option(Text("  " + "─" * width, style=palette.faint), disabled=True))
+            options.append(Option(Text("  " + "─" * 62, style=palette.faint), disabled=True))
             options.append(Option(Text(""), disabled=True))
 
         for s in self._songs:
