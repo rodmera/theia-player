@@ -458,7 +458,7 @@ class TheIAPlayerApp(KitApp):
                         glyph = icons.LIST
                     row.append(f" {glyph} ", style=palette.peach)
                     row.append(pin["name"], style=palette.text)
-                    options.append(Option(row, id=pin["id"]))
+                    options.append(Option(row, id=f"pin:{pin['id']}"))
 
             options.append(Option(Text(" "), disabled=True))
             options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
@@ -505,7 +505,8 @@ class TheIAPlayerApp(KitApp):
             return
         ol = self.query_one("#sidebar-list", ClickList)
         for i in range(ol.option_count):
-            if ol.get_option_at_index(i).id == view_id:
+            opt_id = ol.get_option_at_index(i).id
+            if opt_id == view_id or (opt_id and opt_id.startswith("pin:") and opt_id.split(":", 1)[1] == view_id):
                 ol.highlighted = i
                 return
 
@@ -521,6 +522,9 @@ class TheIAPlayerApp(KitApp):
                 opt = ol.get_option_at_index(ol.highlighted)
                 if opt and opt.id and not opt.id.startswith("folder:") and opt.id != "pl-new":
                     target_id = opt.id
+                    if target_id.startswith("pin:"):
+                        target_id = target_id.split(":", 1)[1]
+                        
                     if target_id.startswith("pl:"):
                         pid = target_id.split(":", 1)[1]
                         playlist = next((p for p in self._playlists if p.id == pid), None)
@@ -547,6 +551,9 @@ class TheIAPlayerApp(KitApp):
         if not target_id:
             return
 
+        # Ensure target_name is a clean string (TUI labels can sometimes be Text objects)
+        target_name = str(target_name)
+
         state = self.dirs.load_state()
         pins = state.get("pins", [])
         
@@ -571,13 +578,16 @@ class TheIAPlayerApp(KitApp):
         if oid.startswith("folder:"):
             # Don't try to load songs for a folder category header
             return
+            
+        real_id = oid.split(":", 1)[1] if oid.startswith("pin:") else oid
+        
         # Si la vista seleccionada ya está activa en pantalla, NO volver a cargarla.
         # Esto previene de forma absoluta recargas accidentales en segundo plano y desincronizaciones de la cola.
-        if oid == self.view and self._songs:
+        if real_id == self.view and self._songs:
             return
-        self.view = oid
-        self.dirs.save_state({"view": oid})
-        self._load_view(oid)
+        self.view = real_id
+        self.dirs.save_state({"view": real_id})
+        self._load_view(real_id)
 
     @on(OptionList.OptionSelected, "#sidebar-list")
     def _sidebar_selected(self, event: OptionList.OptionSelected) -> None:
@@ -592,11 +602,14 @@ class TheIAPlayerApp(KitApp):
                 self._collapsed_folders.add(folder_name)
             self._render_sidebar()
             return
-        if oid == "pl-new":
+            
+        real_id = oid.split(":", 1)[1] if oid.startswith("pin:") else oid
+        
+        if real_id == "pl-new":
             self.push_screen(
                 InputModal("new playlist", placeholder="name"), self._playlist_created_name
             )
-        elif oid == "shuffle-all":
+        elif real_id == "shuffle-all":
             self._shuffle_everything()
         else:
             self._play_view_from_top(oid)
