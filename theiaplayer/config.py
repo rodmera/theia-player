@@ -47,6 +47,7 @@ DEFAULT_KEYBINDS: dict = {
     "theme_pick":           "T",
     "help":                 "question_mark",
     "quit":                 "q",
+    "pin_toggle":           "i",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -328,6 +329,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["refresh"],              "refresh",              show=False),
         Binding(kb["theme_cycle"],          "cycle_kit_theme",      "theme"),
         Binding(kb["theme_pick"],           "change_theme",         show=False),
+        Binding(kb["pin_toggle"],           "toggle_pin",           show=False),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),
     ]

@@ -39,7 +39,7 @@ from theiaplayer.api import SubsonicClient, SubsonicError
 from theiaplayer.art import CoverArt
 from theiaplayer.models import Album, Artist, Playlist, Song
 from theiaplayer.playqueue import PlayQueue
-from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal
+from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal, PlaylistPickerModal
 from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
 
 VIEWS = [
@@ -142,6 +142,7 @@ class TheIAPlayerApp(KitApp):
         Binding("R", "refresh", show=False),
         Binding("t", "cycle_kit_theme", "theme"),
         Binding("T", "change_theme", show=False),
+        Binding("i", "toggle_pin", "pin to fav", show=True),
         Binding("question_mark", "help", "help"),
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
@@ -218,6 +219,7 @@ class TheIAPlayerApp(KitApp):
         self._current_artist_albums: list[Album] = []
         self._current_artist_songs: list[Song] = []
         self._current_artist_name: str = ""
+        self._collapsed_folders: set[str] = set()
 
     # ── layout ────────────────────────────────────────────────────────
     def compose(self):
@@ -438,6 +440,26 @@ class TheIAPlayerApp(KitApp):
                 row.append(f"{glyph} ", style=color)
                 row.append(label, style=palette.text)
                 options.append(Option(row, id=view_id))
+
+            # Render Pinned Favorites (Favorites Section)
+            state = self.dirs.load_state()
+            pins = state.get("pins", [])
+            if pins:
+                options.append(Option(Text(" "), disabled=True))
+                options.append(Option(Text(" favorites", style=f"bold {palette.dim}"), disabled=True))
+                for pin in pins:
+                    row = Text(no_wrap=True, overflow="ellipsis")
+                    glyph = "📌"
+                    if pin["id"].startswith("artist:"):
+                        glyph = "👤"
+                    elif pin["id"].startswith("album:"):
+                        glyph = "💿"
+                    elif pin["id"].startswith("pl:"):
+                        glyph = icons.LIST
+                    row.append(f" {glyph} ", style=palette.peach)
+                    row.append(pin["name"], style=palette.text)
+                    options.append(Option(row, id=pin["id"]))
+
             options.append(Option(Text(" "), disabled=True))
             options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
             current_folder = None
@@ -448,8 +470,12 @@ class TheIAPlayerApp(KitApp):
                     if folder != current_folder:
                         current_folder = folder
                         folder_row = Text(no_wrap=True, overflow="ellipsis")
-                        folder_row.append(f" 📂 {folder}", style=f"bold {palette.peach}")
-                        options.append(Option(folder_row, disabled=True))
+                        is_collapsed = folder in self._collapsed_folders
+                        icon = "📁" if is_collapsed else "📂"
+                        folder_row.append(f" {icon} {folder}", style=f"bold {palette.peach}")
+                        options.append(Option(folder_row, id=f"folder:{folder}"))
+                    if folder in self._collapsed_folders:
+                        continue
                     row.append("   ", style=palette.vfaint)
                     row.append(f"{icons.LIST} ", style=palette.lav)
                     row.append(name, style=palette.text)
@@ -483,12 +509,67 @@ class TheIAPlayerApp(KitApp):
                 ol.highlighted = i
                 return
 
+    def action_toggle_pin(self) -> None:
+        focused = self.focused
+        target_id = None
+        target_name = None
+        
+        # If focus is on the sidebar, toggle the highlighted element
+        if focused and focused.id == "sidebar-list":
+            ol = self.query_one("#sidebar-list", ClickList)
+            if ol.highlighted is not None:
+                opt = ol.get_option_at_index(ol.highlighted)
+                if opt and opt.id and not opt.id.startswith("folder:") and opt.id != "pl-new":
+                    target_id = opt.id
+                    if target_id.startswith("pl:"):
+                        pid = target_id.split(":", 1)[1]
+                        playlist = next((p for p in self._playlists if p.id == pid), None)
+                        target_name = playlist.name if playlist else "playlist"
+                    else:
+                        target_name = next((label for vid, label in VIEWS if vid == target_id), target_id)
+        else:
+            # If focus is elsewhere, toggle the current active view (e.g. artist:id, album:id)
+            target_id = self.view
+            if target_id.startswith("artist:"):
+                target_name = getattr(self, "_current_artist_name", "artist") or "artist"
+            elif target_id.startswith("album:"):
+                panel = self.query_one("#tracks-panel")
+                target_name = panel.border_title or "album"
+                if " · " in target_name:
+                    target_name = target_name.split(" · ", 1)[1]
+            elif target_id.startswith("pl:"):
+                pid = target_id.split(":", 1)[1]
+                playlist = next((p for p in self._playlists if p.id == pid), None)
+                target_name = playlist.name if playlist else "playlist"
+            else:
+                target_name = next((label for vid, label in VIEWS if vid == target_id), target_id)
+
+        if not target_id:
+            return
+
+        state = self.dirs.load_state()
+        pins = state.get("pins", [])
+        
+        existing_idx = next((i for i, p in enumerate(pins) if p["id"] == target_id), None)
+        if existing_idx is not None:
+            pins.pop(existing_idx)
+            self.notify("unpinned from favorites", timeout=2)
+        else:
+            pins.append({"id": target_id, "name": target_name})
+            self.notify(f"pinned “{target_name}” to favorites", timeout=2)
+            
+        self.dirs.save_state({"pins": pins})
+        self._render_sidebar()
+
     @on(OptionList.OptionHighlighted, "#sidebar-list")
     def _sidebar_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         if getattr(self, "_loading_playlists", False):
             return  # Ignore programmatic highlights during sidebar repopulation
         oid = event.option.id
         if not oid or oid == "pl-new":
+            return
+        if oid.startswith("folder:"):
+            # Don't try to load songs for a folder category header
             return
         # Si la vista seleccionada ya está activa en pantalla, NO volver a cargarla.
         # Esto previene de forma absoluta recargas accidentales en segundo plano y desincronizaciones de la cola.
@@ -502,6 +583,14 @@ class TheIAPlayerApp(KitApp):
     def _sidebar_selected(self, event: OptionList.OptionSelected) -> None:
         oid = event.option.id
         if not oid:
+            return
+        if oid.startswith("folder:"):
+            folder_name = oid.split(":", 1)[1]
+            if folder_name in self._collapsed_folders:
+                self._collapsed_folders.remove(folder_name)
+            else:
+                self._collapsed_folders.add(folder_name)
+            self._render_sidebar()
             return
         if oid == "pl-new":
             self.push_screen(
@@ -1461,25 +1550,23 @@ class TheIAPlayerApp(KitApp):
         if song is None:
             self.notify("highlight a track first (tracks or queue panel)", timeout=3)
             return
-        options = [
-            Option(Text(f" {icons.LIST} {p.name}", style=palette.text), id=f"pl:{p.id}")
-            for p in self._playlists
-        ]
-        options.append(Option(Text(f" {icons.PLUS} new playlist…", style=palette.sub), id="pl-new"))
 
-        def picked(choice: str | None) -> None:
+        def picked(choice: dict | None) -> None:
             if not choice:
                 return
-            if choice == "pl-new":
+            if choice["action"] == "new":
                 self.push_screen(
                     InputModal("new playlist", placeholder="name"),
                     lambda name: self._playlist_create(name, song) if name else None,
                 )
-            else:
-                pid = choice.split(":", 1)[1]
-                self._playlist_append(pid, song)
+            elif choice["action"] == "add":
+                playlist_ids = choice["playlist_ids"]
+                if not playlist_ids:
+                    return
+                for pid in playlist_ids:
+                    self._playlist_append(pid, song)
 
-        self.push_screen(PickerModal(f"add “{song.title}” to…", options), picked)
+        self.push_screen(PlaylistPickerModal(f"add “{song.title}” to…", self._playlists), picked)
 
     def _playlist_created_name(self, name: str | None) -> None:
         if name:

@@ -44,6 +44,7 @@ _ALIASES: dict[str, str] = {
     "notifications_toggle": "toggle_notifications",
     "theme_cycle":          "cycle_kit_theme",
     "theme_pick":           "change_theme",
+    "pin_toggle":           "toggle_pin",
 }
 
 

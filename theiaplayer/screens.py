@@ -781,3 +781,99 @@ class EqualizerModal(ModalScreen):
             "preset": self._preset,
             "bands": self._get_gains()
         })
+
+
+class PlaylistPickerModal(ModalScreen):
+    """Interactive multi-select playlist picker."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("space", "toggle_highlighted", show=False),
+        Binding("ctrl+s", "confirm", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    PlaylistPickerModal { align: center middle; background: $kit-overlay; }
+    PlaylistPickerModal #playlist-picker-box {
+        width: 46; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 1;
+    }
+    PlaylistPickerModal #playlist-picker-title { padding: 0 1 1 1; text-style: bold; }
+    PlaylistPickerModal #playlist-picker-list { height: auto; max-height: 18; }
+    """
+
+    def __init__(self, title: str, playlists: list) -> None:
+        super().__init__()
+        self._title = title
+        self._playlists = playlists
+        self.selected_ids: set[str] = set()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="playlist-picker-box"):
+            yield Static(Text(self._title, style=f"bold {palette.sub}"), id="playlist-picker-title")
+            yield NavList(id="playlist-picker-list")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#playlist-picker-box"))
+        self._render_options()
+        self.query_one("#playlist-picker-list").focus()
+
+    def _render_options(self, highlight_idx: int | None = None) -> None:
+        ol = self.query_one("#playlist-picker-list", NavList)
+        
+        options = []
+        for p in self._playlists:
+            is_sel = p.id in self.selected_ids
+            box = "[\u2714]" if is_sel else "[ ]"  # ✔ or empty
+            style = palette.green if is_sel else palette.dim
+            row = Text()
+            row.append(f" {box} ", style=style)
+            row.append(p.name, style=palette.text)
+            options.append(Option(row, id=f"pl:{p.id}"))
+            
+        options.append(Option(Text(f"  {icons.PLUS} new playlist…", style=palette.sub), id="pl-new"))
+        options.append(Option(Text(f"  {icons.LIST} Add to selected ({len(self.selected_ids)})", style=palette.accent), id="pl-done"))
+        
+        ol.clear_options()
+        ol.add_options(options)
+            
+        if highlight_idx is not None and highlight_idx < len(options):
+            ol.highlighted = highlight_idx
+
+    @on(OptionList.OptionSelected)
+    def _selected(self, event: OptionList.OptionSelected) -> None:
+        choice = event.option.id
+        if not choice:
+            return
+            
+        if choice == "pl-new":
+            self.dismiss({"action": "new", "playlist_ids": []})
+        elif choice == "pl-done":
+            self.dismiss({"action": "add", "playlist_ids": list(self.selected_ids)})
+        else:
+            pid = choice.split(":", 1)[1]
+            if pid in self.selected_ids:
+                self.selected_ids.remove(pid)
+            else:
+                self.selected_ids.add(pid)
+            self._render_options(highlight_idx=self.query_one("#playlist-picker-list", NavList).highlighted)
+
+    def action_toggle_highlighted(self) -> None:
+        ol = self.query_one("#playlist-picker-list", NavList)
+        idx = ol.highlighted
+        if idx is None:
+            return
+        opt = ol.get_option_at_index(idx)
+        if opt and opt.id and opt.id.startswith("pl:"):
+            pid = opt.id.split(":", 1)[1]
+            if pid in self.selected_ids:
+                self.selected_ids.remove(pid)
+            else:
+                self.selected_ids.add(pid)
+            self._render_options(highlight_idx=idx)
+
+    def action_confirm(self) -> None:
+        self.dismiss({"action": "add", "playlist_ids": list(self.selected_ids)})
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

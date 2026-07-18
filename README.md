@@ -100,7 +100,8 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `n` / `b` | next / previous |
 | `←` `→` | seek (`shift` for 30s) |
 | `a` / `A` | queue / play next (works in search too) |
-| `p` | add track to a playlist |
+| `p` | add track to playlists (multi-select) |
+| `i` | pin view / highlighted item to favorites (Pins) |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |
