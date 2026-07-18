@@ -612,7 +612,7 @@ class TheIAPlayerApp(KitApp):
         elif real_id == "shuffle-all":
             self._shuffle_everything()
         else:
-            self._play_view_from_top(oid)
+            self._play_view_from_top(real_id)
 
     # ── loading songs into the tracks pane ────────────────────────────
     async def _fetch_songs_for_view(self, view_id: str) -> list[Song]:
