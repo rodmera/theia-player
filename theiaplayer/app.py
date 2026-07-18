@@ -670,7 +670,7 @@ class TheIAPlayerApp(KitApp):
                     f"Sé sumamente conciso, directo y fascinante. Evita preámbulos o saludos."
                 )
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.5-flash",
                     contents=prompt
                 )
                 return response.text.strip()
