@@ -637,8 +637,8 @@ class TheIAPlayerApp(KitApp):
                 cache_key = f"spotlight-{selected_album.id}"
                 cached = self.dirs.read_cache(cache_key)
                 
-                if cached and "text" in cached:
-                    self._current_spotlight_text = cached["text"]
+                if cached and ("trivia" in cached or "text" in cached):
+                    self._current_spotlight_text = cached.get("trivia", cached.get("text", ""))
                 else:
                     self._current_spotlight_text = "Cargando detalles y datos fascinantes sobre este álbum de fondo via Gemini..."
                     # Fetch from Gemini asynchronously in the background
