@@ -813,7 +813,7 @@ class TheIAPlayerApp(KitApp):
         title = self._tracks_title(view_id)
 
         cache_map = {
-            "home": "home-mix",
+            "home": "home",
             "all-songs": "all-songs",
             "shuffle-all": "all-songs",
             "newest": "songview-newest",
@@ -828,6 +828,9 @@ class TheIAPlayerApp(KitApp):
         if cache_key:
             cached = self.dirs.read_cache(cache_key)
             if cached:
+                if view_id == "home":
+                    self._current_spotlight_album_id = cached.get("spotlight_album_id")
+                    self._current_spotlight_text = cached.get("spotlight_text")
                 self._show_songs([Song.from_dict(s) for s in cached.get("songs", [])], title)
 
         try:
@@ -837,7 +840,11 @@ class TheIAPlayerApp(KitApp):
             return
 
         if cache_key:
-            self.dirs.write_cache(cache_key, {"songs": [s.to_dict() for s in songs]})
+            cache_data = {"songs": [s.to_dict() for s in songs]}
+            if view_id == "home":
+                cache_data["spotlight_album_id"] = getattr(self, "_current_spotlight_album_id", None)
+                cache_data["spotlight_text"] = getattr(self, "_current_spotlight_text", None)
+            self.dirs.write_cache(cache_key, cache_data)
 
         if self.view == view_id:
             self._show_songs(songs, title)
