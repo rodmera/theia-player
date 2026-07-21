@@ -794,7 +794,9 @@ class TheIAPlayerApp(KitApp):
                     options.append(Option(Text(f"  {line}", style=palette.dim), disabled=True))
                 
             options.append(Option(Text(""), disabled=True))
-            options.append(Option(Text("  Presiona [Enter] abajo para escuchar este Álbum del Día:", style=palette.dim), disabled=True))
+            spotlight_text = getattr(self, "_current_spotlight_text", "")
+            if spotlight_text:
+                options.append(Option(Text("  Presiona [Enter] abajo para escuchar este Álbum del Día:", style=palette.dim), disabled=True))
             options.append(Option(Text(""), disabled=True))
             options.append(Option(Text("  " + "─" * 62, style=palette.faint), disabled=True))
             options.append(Option(Text(""), disabled=True))
