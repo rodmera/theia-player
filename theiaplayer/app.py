@@ -758,48 +758,41 @@ class TheIAPlayerApp(KitApp):
         if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
             cache_key = f"spotlight-{self._current_spotlight_album_id}"
             cached = self.dirs.read_cache(cache_key)
-            
-            options.append(Option(Text(""), disabled=True))
-            options.append(Option(Text("  📌 ALBUM SPOTLIGHT  ", style=f"reverse bold {palette.peach}"), disabled=True))
-            options.append(Option(Text(""), disabled=True))
-            
-            if cached:
-                # Structured metadata
-                album = cached.get("album", "N/A")
-                artist = cached.get("artist", "N/A")
-                year = cached.get("year", "N/A")
-                label = cached.get("label", "N/A")
-                genre = cached.get("genre", "N/A")
-                trivia = cached.get("trivia", cached.get("text", ""))
-                
-                options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
-                options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
-                options.append(Option(Text(f"  📅 Año:     {year}", style=palette.dim), disabled=True))
-                options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.dim), disabled=True))
-                options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.dim), disabled=True))
-                options.append(Option(Text(""), disabled=True))
-                
-                import textwrap
-                width = 62  # responsive standard read width
-                wrapped_lines = textwrap.wrap(trivia, width=width)
-                for line in wrapped_lines:
-                    options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
-            else:
-                # Loading state or fallback to temporary text
-                spotlight_text = getattr(self, "_current_spotlight_text", "Cargando detalles...")
-                import textwrap
-                width = 62
-                wrapped_lines = textwrap.wrap(spotlight_text, width=width)
-                for line in wrapped_lines:
-                    options.append(Option(Text(f"  {line}", style=palette.dim), disabled=True))
-                
-            options.append(Option(Text(""), disabled=True))
             spotlight_text = getattr(self, "_current_spotlight_text", "")
-            if spotlight_text:
-                options.append(Option(Text("  Presiona [Enter] abajo para escuchar este Álbum del Día:", style=palette.dim), disabled=True))
-            options.append(Option(Text(""), disabled=True))
-            options.append(Option(Text("  " + "─" * 62, style=palette.faint), disabled=True))
-            options.append(Option(Text(""), disabled=True))
+
+            # Only render the spotlight block when there is actual content to show
+            has_content = bool(cached) or bool(spotlight_text)
+            if has_content:
+                options.append(Option(Text(""), disabled=True))
+                options.append(Option(Text("  📌 ALBUM SPOTLIGHT  ", style=f"reverse bold {palette.peach}"), disabled=True))
+                options.append(Option(Text(""), disabled=True))
+
+                if cached:
+                    album = cached.get("album", "N/A")
+                    artist = cached.get("artist", "N/A")
+                    year = cached.get("year", "N/A")
+                    label = cached.get("label", "N/A")
+                    genre = cached.get("genre", "N/A")
+                    trivia = cached.get("trivia", cached.get("text", ""))
+
+                    options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
+                    options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
+                    options.append(Option(Text(f"  📅 Año:     {year}", style=palette.dim), disabled=True))
+                    options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.dim), disabled=True))
+                    options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.dim), disabled=True))
+                    options.append(Option(Text(""), disabled=True))
+
+                    import textwrap
+                    for line in textwrap.wrap(trivia, width=62):
+                        options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
+                elif spotlight_text:
+                    import textwrap
+                    for line in textwrap.wrap(spotlight_text, width=62):
+                        options.append(Option(Text(f"  {line}", style=palette.dim), disabled=True))
+
+                options.append(Option(Text(""), disabled=True))
+                options.append(Option(Text("  " + "─" * 62, style=palette.faint), disabled=True))
+                options.append(Option(Text(""), disabled=True))
 
         for s in self._songs:
             options.append(self._song_row(s))
