@@ -640,9 +640,12 @@ class TheIAPlayerApp(KitApp):
                 if cached and ("trivia" in cached or "text" in cached):
                     self._current_spotlight_text = cached.get("trivia", cached.get("text", ""))
                 else:
-                    self._current_spotlight_text = "Cargando detalles y datos fascinantes sobre este álbum de fondo via Gemini..."
-                    # Fetch from Gemini asynchronously in the background
-                    self._fetch_spotlight_trivia_async(selected_album.id, selected_album.name, selected_album.artist)
+                    import os
+                    if os.environ.get("GOOGLE_API_KEY"):
+                        self._current_spotlight_text = "Cargando trivia del álbum..."
+                        self._fetch_spotlight_trivia_async(selected_album.id, selected_album.name, selected_album.artist)
+                    else:
+                        self._current_spotlight_text = ""
                     
                 return songs
             except Exception:
