@@ -12,6 +12,7 @@ just tells you how to get sound on your OS.
 
 from __future__ import annotations
 
+import sys
 from typing import Callable
 
 MPV_AVAILABLE = True
@@ -67,8 +68,10 @@ class Player:
             replaygain_preamp=replaygain_preamp,
             replaygain_fallback=replaygain_fallback,
             audio_exclusive=audio_exclusive,
-            pipewire_buffer=150,
         )
+        # pipewire_buffer is a Linux-only mpv option; macOS uses CoreAudio natively
+        if sys.platform != "darwin":
+            opts["pipewire_buffer"] = 150
         if ao:
             opts["ao"] = ao
         self._m = _mpv.MPV(**opts)
@@ -339,7 +342,6 @@ def choose_audio_driver(ao: str | None, platform: str | None = None) -> str | No
     if ao is not None:
         return ao
     if platform is None:
-        import sys
         platform = sys.platform
     if platform == "darwin":
         return None
