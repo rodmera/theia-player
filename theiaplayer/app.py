@@ -641,7 +641,7 @@ class TheIAPlayerApp(KitApp):
                     self._current_spotlight_text = cached.get("trivia", cached.get("text", ""))
                 else:
                     import os
-                    if os.environ.get("GOOGLE_API_KEY"):
+                    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
                         self._current_spotlight_text = "Cargando trivia del álbum..."
                         self._fetch_spotlight_trivia_async(selected_album.id, selected_album.name, selected_album.artist)
                     else:
