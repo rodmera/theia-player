@@ -102,6 +102,7 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `a` / `A` | queue / play next (works in search too) |
 | `p` | add track to playlists (multi-select) |
 | `i` | pin view / highlighted item to favorites (Pins) |
+| `c` | ver y copiar detalles/trivia de Spotlight al portapapeles |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |

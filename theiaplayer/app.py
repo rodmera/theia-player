@@ -39,7 +39,7 @@ from theiaplayer.api import SubsonicClient, SubsonicError
 from theiaplayer.art import CoverArt
 from theiaplayer.models import Album, Artist, Playlist, Song
 from theiaplayer.playqueue import PlayQueue
-from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal, PlaylistPickerModal
+from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal, PlaylistPickerModal, SpotlightModal
 from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
 
 VIEWS = [
@@ -147,6 +147,7 @@ class TheIAPlayerApp(KitApp):
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
         Binding("L", "show_lyrics", "lyrics", show=True),
+        Binding("c", "copy_text", "copy info", show=True),
         Binding("ctrl+e,y", "show_equalizer", "eq", show=True),
         Binding("ctrl+g", "switch_server", "switch server", show=True),
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
@@ -764,7 +765,7 @@ class TheIAPlayerApp(KitApp):
             has_content = bool(cached) or bool(spotlight_text)
             if has_content:
                 options.append(Option(Text(""), disabled=True))
-                options.append(Option(Text("  📌 ALBUM SPOTLIGHT  ", style=f"reverse bold {palette.peach}"), disabled=True))
+                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] ver y copiar  ", style=f"reverse bold {palette.peach}"), disabled=True))
                 options.append(Option(Text(""), disabled=True))
 
                 if cached:
@@ -1381,6 +1382,74 @@ class TheIAPlayerApp(KitApp):
             except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 continue
         self.notify(f"share: {url}", timeout=12)
+
+    def copy_to_clipboard(self, text: str) -> bool:
+        """Copy text to system clipboard via wl-copy, xclip, or pbcopy."""
+        if not text:
+            return False
+        for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["pbcopy"]):
+            try:
+                subprocess.run(
+                    cmd,
+                    input=text.encode(),
+                    check=True,
+                    timeout=3,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                continue
+        return False
+
+    def action_copy_text(self) -> None:
+        """Copy Spotlight/trivia details or highlighted track info to system clipboard and open modal."""
+        if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
+            cache_key = f"spotlight-{self._current_spotlight_album_id}"
+            cached = self.dirs.read_cache(cache_key)
+            if cached:
+                album = cached.get("album", "N/A")
+                artist = cached.get("artist", "N/A")
+                year = cached.get("year", "N/A")
+                label = cached.get("label", "N/A")
+                genre = cached.get("genre", "N/A")
+                trivia = cached.get("trivia", cached.get("text", ""))
+
+                formatted = (
+                    f"📌 ALBUM SPOTLIGHT\n\n"
+                    f"💿 Álbum:   {album}\n"
+                    f"👤 Artista: {artist}\n"
+                    f"📅 Año:     {year}\n"
+                    f"🏷️ Sello:   {label}\n"
+                    f"🎸 Género:  {genre}\n\n"
+                    f"{trivia}"
+                )
+            else:
+                formatted = getattr(self, "_current_spotlight_text", "")
+
+            if formatted:
+                copied = self.copy_to_clipboard(formatted)
+                msg = "📌 Reseña y detalles copiados al portapapeles" if copied else "📌 Detalles de Spotlight"
+                self.notify(msg, timeout=5)
+
+                def do_copy(text: str):
+                    if self.copy_to_clipboard(text):
+                        self.notify("📌 Copiado al portapapeles", timeout=4)
+
+                self.push_screen(SpotlightModal("📌 ALBUM SPOTLIGHT", formatted, copy_callback=do_copy))
+            else:
+                self.notify("no hay trivia disponible para copiar", timeout=3)
+        else:
+            song = self._highlighted_song() or self.queue.current
+            if song:
+                text = f"{song.title} - {song.artist} ({song.album})"
+                copied = self.copy_to_clipboard(text)
+                if copied:
+                    self.notify(f"copiado: {text}", timeout=4)
+                else:
+                    self.notify(f"{text}", timeout=5)
+            else:
+                self.notify("nada que copiar", timeout=3)
 
     # ── rating ────────────────────────────────────────────────────────
     def action_rate(self, n: int) -> None:

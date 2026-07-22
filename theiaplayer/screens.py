@@ -297,14 +297,70 @@ class LyricsModal(ModalScreen):
             except Exception:
                 pass
 
+
+class SpotlightModal(ModalScreen):
+    """Modal to view and copy Spotlight details and trivia in an isolated single-column box.
+    Dismiss with Escape, q, or c/y/Enter.
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+        Binding("c,y,enter", "copy_and_dismiss", show=False),
+        Binding("j,down", "scroll_down", show=False),
+        Binding("k,up", "scroll_up", show=False),
+        Binding("space", "app_play_pause", show=False),
+        Binding("n", "app_next_track", show=False),
+        Binding("b", "app_prev_track", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    SpotlightModal { align: center middle; background: $kit-overlay; }
+    SpotlightModal #spotlight-box {
+        width: 72; height: 80%; max-height: 38;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    SpotlightModal #spotlight-title { margin-bottom: 1; }
+    SpotlightModal VerticalScroll { height: 1fr; margin-bottom: 1; }
+    SpotlightModal VerticalScroll Static { background: $kit-modal-bg; color: $text; }
+    SpotlightModal #spotlight-footer { height: 1; color: $text-muted; text-align: center; }
+    """
+
+    def __init__(self, title: str, details_text: str, copy_callback=None) -> None:
+        super().__init__()
+        self._title = title
+        self._details_text = details_text
+        self._copy_callback = copy_callback
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="spotlight-box"):
+            yield Static(Text(self._title, style=f"bold {palette.peach}"), id="spotlight-title")
+            with VerticalScroll(id="spotlight-scroll"):
+                yield Static(self._details_text, id="spotlight-text")
+            yield Static(Text("  [c / y / Enter] Copiar al portapapeles  ·  [Esc / q] Cerrar  ", style=palette.dim), id="spotlight-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#spotlight-box"))
+        settle_pop_in(self, "#spotlight-box")
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
+    def action_copy_and_dismiss(self) -> None:
+        if self._copy_callback:
+            self._copy_callback(self._details_text)
+        try:
+            self.dismiss(True)
+        except Exception:
+            pass
+
     def action_scroll_down(self) -> None:
-        self.query_one("#lyrics-scroll", VerticalScroll).scroll_down()
+        scroll = self.query_one("#spotlight-scroll", VerticalScroll)
+        scroll.scroll_down()
 
     def action_scroll_up(self) -> None:
-        self.query_one("#lyrics-scroll", VerticalScroll).scroll_up()
+        scroll = self.query_one("#spotlight-scroll", VerticalScroll)
+        scroll.scroll_up()
 
     def action_app_play_pause(self) -> None:
         self.app.action_play_pause()
