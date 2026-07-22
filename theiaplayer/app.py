@@ -1402,6 +1402,14 @@ class TheIAPlayerApp(KitApp):
                 continue
         return False
 
+    def refresh_cover_art(self, force: bool = False) -> None:
+        """Force a re-render of the cover art to clear terminal graphics protocol tearing."""
+        try:
+            art = self.query_one("#art-panel", CoverArt)
+            art.refresh_art(force=force)
+        except Exception:
+            pass
+
     def action_copy_text(self) -> None:
         """Copy Spotlight/trivia details or highlighted track info to system clipboard and open modal."""
         if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
@@ -1429,14 +1437,15 @@ class TheIAPlayerApp(KitApp):
 
             if formatted:
                 copied = self.copy_to_clipboard(formatted)
-                msg = "📌 Reseña y detalles copiados al portapapeles" if copied else "📌 Detalles de Spotlight"
-                self.notify(msg, timeout=5)
+                if copied:
+                    self.notify("📌 Reseña y detalles copiados al portapapeles", timeout=3)
 
                 def do_copy(text: str):
                     if self.copy_to_clipboard(text):
-                        self.notify("📌 Copiado al portapapeles", timeout=4)
+                        self.notify("📌 Copiado al portapapeles", timeout=3)
 
                 self.push_screen(SpotlightModal("📌 ALBUM SPOTLIGHT", formatted, copy_callback=do_copy))
+                self.set_timer(0.05, lambda: self.refresh_cover_art(force=True))
             else:
                 self.notify("no hay trivia disponible para copiar", timeout=3)
         else:
@@ -1445,9 +1454,9 @@ class TheIAPlayerApp(KitApp):
                 text = f"{song.title} - {song.artist} ({song.album})"
                 copied = self.copy_to_clipboard(text)
                 if copied:
-                    self.notify(f"copiado: {text}", timeout=4)
+                    self.notify(f"copiado: {text}", timeout=3)
                 else:
-                    self.notify(f"{text}", timeout=5)
+                    self.notify(f"{text}", timeout=4)
             else:
                 self.notify("nada que copiar", timeout=3)
 

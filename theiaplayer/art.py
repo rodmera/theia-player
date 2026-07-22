@@ -81,6 +81,7 @@ class CoverArt(Vertical):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._current: str | None = None
+        self._current_path: Path | None = None
         self._cls = _image_class()
 
     def compose(self):
@@ -94,11 +95,14 @@ class CoverArt(Vertical):
 
     def placeholder(self) -> None:
         self._current = None
+        self._current_path = None
         self._swap(Static(self._placeholder_text(), id="cover-placeholder"))
 
     def show(self, path: Path, key: str) -> None:
         """`key` identifies the art so re-selecting the same album is free."""
+        self._current_path = path
         if key == self._current:
+            self.refresh_art()
             return
         self._current = key
         if self._cls is None:
@@ -109,6 +113,23 @@ class CoverArt(Vertical):
             self.placeholder()
             return
         self._swap(image)
+
+    def refresh_art(self, force: bool = False) -> None:
+        """Re-render cover image to fix terminal graphics protocol tearing from overlays/modals."""
+        if not self._current_path or self._cls is None:
+            return
+        if force:
+            try:
+                image = self._cls(str(self._current_path), classes="cover-image")
+                self._swap(image)
+            except Exception:
+                pass
+        else:
+            for child in self.children:
+                try:
+                    child.refresh(layout=True)
+                except Exception:
+                    pass
 
     def _swap(self, widget) -> None:
         async def do() -> None:
