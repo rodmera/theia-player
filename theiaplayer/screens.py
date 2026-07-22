@@ -315,7 +315,7 @@ class SpotlightModal(ModalScreen):
     ]
 
     DEFAULT_CSS = """
-    SpotlightModal { align: center middle; background: $kit-overlay; }
+    SpotlightModal { align: center middle; background: transparent; }
     SpotlightModal #spotlight-box {
         width: 72; height: 80%; max-height: 38;
         background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
