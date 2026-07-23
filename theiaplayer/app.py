@@ -989,9 +989,6 @@ class TheIAPlayerApp(KitApp):
         idx = next((i for i, s in enumerate(self._songs) if s.id == event.option.id), None)
         if idx is not None:
             self._play_songs(self._songs, idx)
-            if self.view == "shuffle-all":
-                self._songs = list(self.queue.songs)
-                self._show_songs(self._songs, self._tracks_title("shuffle-all"))
 
     @on(OptionList.OptionSelected, "#queue-list")
     def _queue_selected(self, event: OptionList.OptionSelected) -> None:
@@ -1009,13 +1006,13 @@ class TheIAPlayerApp(KitApp):
             self.query_one("#now", NowPlaying).shuffle = True
             self.dirs.save_state({"shuffle": True})
         self._play_songs(self._songs, random.randrange(len(self._songs)))
-        if self.view == "shuffle-all":
-            self._songs = list(self.queue.songs)
-            self._show_songs(self._songs, self._tracks_title("shuffle-all"))
         self.notify(f"shuffling all {len(self._songs)} tracks", timeout=3)
 
     def _play_songs(self, songs: list[Song], start: int) -> None:
         self.queue.set_songs(songs, start)
+        if self.queue.shuffle and self.queue.songs:
+            self._songs = list(self.queue.songs)
+            self._show_songs(self._songs, self._tracks_title(self.view))
         self._play_current()
 
     def _play_current(self, resume_at: float = 0.0) -> None:
@@ -1128,9 +1125,9 @@ class TheIAPlayerApp(KitApp):
     def action_toggle_shuffle(self) -> None:
         on_now = self.queue.toggle_shuffle()
         self.query_one("#now", NowPlaying).shuffle = on_now
-        if self.view == "shuffle-all":
+        if self.queue.songs:
             self._songs = list(self.queue.songs)
-            self._show_songs(self._songs, self._tracks_title("shuffle-all"))
+            self._show_songs(self._songs, self._tracks_title(self.view))
         self._render_queue()
         self.dirs.save_state({"shuffle": on_now})
         self.notify(f"shuffle {'on' if on_now else 'off'}", timeout=1.5)
