@@ -52,6 +52,7 @@ DEFAULT_KEYBINDS: dict = {
     "signal_path":          "I",
     "focus_filter":         "F",
     "moods":                "M",
+    "album_versions":       "V",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -359,6 +360,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["signal_path"],          "show_signal_path",     "signal path",          show=True),
         Binding(kb["focus_filter"],         "show_focus_filter",    "focus filter",         show=True),
         Binding(kb["moods"],                "show_moods",           "ambientes",            show=True),
+        Binding(kb["album_versions"],       "show_album_versions",  "album versions",       show=True),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),
     ]

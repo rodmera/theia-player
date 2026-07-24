@@ -48,6 +48,7 @@ _ALIASES: dict[str, str] = {
     "signal_path":          "show_signal_path",
     "focus_filter":         "show_focus_filter",
     "moods":                "show_moods",
+    "album_versions":       "show_album_versions",
 }
 
 

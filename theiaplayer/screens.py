@@ -299,7 +299,7 @@ class LyricsModal(ModalScreen):
 
 
 class SpotlightModal(ModalScreen):
-    """Modal to view and copy Spotlight details and trivia in an isolated single-column box.
+    """Modal to view and copy Spotlight details, Roon credits, and Extended Liner Notes.
     Dismiss with Escape, q, or c/y/Enter.
     """
 
@@ -309,15 +309,18 @@ class SpotlightModal(ModalScreen):
         Binding("c,y,enter", "copy_and_dismiss", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
-        Binding("space", "app_play_pause", show=False),
-        Binding("n", "app_next_track", show=False),
-        Binding("b", "app_prev_track", show=False),
+        Binding("tab,l", "toggle_booklet", show=False),
+        Binding("1", "search_collaborator(1)", show=False),
+        Binding("2", "search_collaborator(2)", show=False),
+        Binding("3", "search_collaborator(3)", show=False),
+        Binding("4", "search_collaborator(4)", show=False),
+        Binding("5", "search_collaborator(5)", show=False),
     ]
 
     DEFAULT_CSS = """
     SpotlightModal { align: center middle; background: transparent; }
     SpotlightModal #spotlight-box {
-        width: 72; height: 80%; max-height: 38;
+        width: 74; height: 80%; max-height: 38;
         background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
     }
     SpotlightModal #spotlight-title { margin-bottom: 1; }
@@ -326,29 +329,80 @@ class SpotlightModal(ModalScreen):
     SpotlightModal #spotlight-footer { height: 1; color: $text-muted; text-align: center; }
     """
 
-    def __init__(self, title: str, details_text: str, copy_callback=None) -> None:
+    def __init__(
+        self,
+        title: str,
+        details_text: str,
+        copy_callback=None,
+        collaborators: list[str] | None = None,
+        booklet_text: str | None = None,
+    ) -> None:
         super().__init__()
         self._title = title
         self._details_text = details_text
         self._copy_callback = copy_callback
+        self._collaborators = [c.strip() for c in (collaborators or []) if c.strip() and c.strip() != "N/A"][:5]
+        self._booklet_text = booklet_text or ""
+        self._showing_booklet = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="spotlight-box"):
             yield Static(Text(self._title, style=f"bold {palette.peach}"), id="spotlight-title")
             with VerticalScroll(id="spotlight-scroll"):
                 yield Static(self._details_text, id="spotlight-text")
-            yield Static(Text("  [c / y / Enter] Copiar al portapapeles  ·  [Esc / q] Cerrar  ", style=palette.dim), id="spotlight-footer")
+            yield Static(self._footer_text(), id="spotlight-footer")
+
+    def _footer_text(self) -> Text:
+        t = Text()
+        if self._collaborators:
+            t.append("Buscar: ", style=palette.dim)
+            for i, col in enumerate(self._collaborators, 1):
+                t.append(f"[{i}] ", style=palette.peach)
+                t.append(f"{col}  ", style=palette.text)
+            t.append("· ", style=palette.vfaint)
+        if self._booklet_text:
+            lbl = "Ficha" if self._showing_booklet else "Cuadernillo"
+            t.append(f"[Tab] {lbl}  · ", style=palette.lav)
+        t.append("[c] Copiar  · [Esc] Cerrar", style=palette.dim)
+        return t
 
     def on_mount(self) -> None:
         pop_in(self.query_one("#spotlight-box"))
         settle_pop_in(self, "#spotlight-box")
 
+    def action_toggle_booklet(self) -> None:
+        if not self._booklet_text:
+            return
+        self._showing_booklet = not self._showing_booklet
+        try:
+            text_widget = self.query_one("#spotlight-text", Static)
+            footer_widget = self.query_one("#spotlight-footer", Static)
+            title_widget = self.query_one("#spotlight-title", Static)
+            
+            if self._showing_booklet:
+                text_widget.update(self._booklet_text)
+                title_widget.update(Text("📖 CUADERNILLO DIGITAL / TRACK NOTES", style=f"bold {palette.peach}"))
+            else:
+                text_widget.update(self._details_text)
+                title_widget.update(Text(self._title, style=f"bold {palette.peach}"))
+                
+            footer_widget.update(self._footer_text())
+        except Exception:
+            pass
+
+    def action_search_collaborator(self, num: int) -> None:
+        idx = num - 1
+        if 0 <= idx < len(self._collaborators):
+            col = self._collaborators[idx]
+            self.dismiss({"action": "search", "query": col})
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
     def action_copy_and_dismiss(self) -> None:
+        active_text = self._booklet_text if self._showing_booklet else self._details_text
         if self._copy_callback:
-            self._copy_callback(self._details_text)
+            self._copy_callback(active_text)
         try:
             self.dismiss(True)
         except Exception:
@@ -357,6 +411,10 @@ class SpotlightModal(ModalScreen):
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#spotlight-scroll", VerticalScroll)
         scroll.scroll_down()
+
+    def action_scroll_up(self) -> None:
+        scroll = self.query_one("#spotlight-scroll", VerticalScroll)
+        scroll.scroll_up()
 
     def action_scroll_up(self) -> None:
         scroll = self.query_one("#spotlight-scroll", VerticalScroll)
@@ -1213,6 +1271,80 @@ class MoodsModal(ModalScreen):
         if 0 <= idx < len(self._mood_playlists):
             p = self._mood_playlists[idx]
             self.dismiss({"playlist_id": p.id, "name": p.name})
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AlbumVersionsModal(ModalScreen):
+    """Album Editions & Remasters Selector Modal (Roon-style Album Versions)."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+        Binding("1", "select_num(1)", show=False),
+        Binding("2", "select_num(2)", show=False),
+        Binding("3", "select_num(3)", show=False),
+        Binding("4", "select_num(4)", show=False),
+        Binding("5", "select_num(5)", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    AlbumVersionsModal { align: center middle; background: $kit-overlay; }
+    AlbumVersionsModal #versions-box {
+        width: 65; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    AlbumVersionsModal #versions-title { margin-bottom: 1; text-style: bold; }
+    AlbumVersionsModal #versions-list { height: auto; max-height: 16; margin-top: 1; }
+    AlbumVersionsModal #versions-footer { margin-top: 1; color: $text-muted; text-align: center; }
+    """
+
+    def __init__(self, base_title: str, album_versions: list) -> None:
+        super().__init__()
+        self._base_title = base_title
+        self._versions = album_versions[:5]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="versions-box"):
+            yield Static(Text(f"📀 EDICIONES DE ÁLBUM: {self._base_title}", style=f"bold {palette.peach}"), id="versions-title")
+            yield Static(Text("Versiones y remasterizaciones disponibles en tu biblioteca:\n", style=palette.dim))
+            yield NavList(id="versions-list")
+            yield Static(Text("press 1-5 or Enter to play version · Esc to cancel", style=palette.dim), id="versions-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#versions-box"))
+        self._render_items()
+        self.query_one("#versions-list", NavList).focus()
+
+    def _render_items(self) -> None:
+        ol = self.query_one("#versions-list", NavList)
+        options = []
+        for i, alb in enumerate(self._versions, 1):
+            row = Text()
+            row.append(f"  [{i}] 💿 ", style=palette.peach)
+            row.append(f"{alb.name}", style=f"bold {palette.text}")
+            year_str = f" ({alb.year})" if getattr(alb, "year", None) else ""
+            row.append(f"{year_str}", style=palette.sub)
+            if getattr(alb, "song_count", None):
+                row.append(f" · {alb.song_count}♪", style=palette.dim)
+            options.append(Option(row, id=f"album:{alb.id}"))
+
+        ol.clear_options()
+        ol.add_options(options)
+
+    @on(OptionList.OptionSelected)
+    def _selected(self, event: OptionList.OptionSelected) -> None:
+        oid = event.option.id
+        if oid and oid.startswith("album:"):
+            aid = oid.split(":", 1)[1]
+            self.dismiss({"album_id": aid})
+
+    def action_select_num(self, num: int) -> None:
+        idx = num - 1
+        if 0 <= idx < len(self._versions):
+            alb = self._versions[idx]
+            self.dismiss({"album_id": alb.id})
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -154,6 +154,7 @@ class TheIAPlayerApp(KitApp):
         Binding("I", "show_signal_path", "signal path", show=True),
         Binding("F", "show_focus_filter", "focus filter", show=True),
         Binding("M", "show_moods", "ambientes", show=True),
+        Binding("V", "show_album_versions", "versions", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -773,7 +774,8 @@ class TheIAPlayerApp(KitApp):
                     f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
                     f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
                     f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
-                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\"\n"
+                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\",\n"
+                    f"  \"booklet_notes\": \"Notas extendidas estilo cuadernillo digital (Liner Notes), incluyendo detalles musicales pista por pista o contexto histórico en 2-3 párrafos detallados.\"\n"
                     f"}}\n"
                     f"Sé sumamente preciso y verídico históricamente en los datos."
                 )
@@ -1591,7 +1593,7 @@ class TheIAPlayerApp(KitApp):
             pass
 
     def action_copy_text(self) -> None:
-        """Open Roon-style Album Spotlight & Credits modal for current or highlighted song/album."""
+        """Open Roon-style Album Spotlight, Credits & Digital Booklet modal for current or highlighted song/album."""
         song = self._highlighted_song() or self.queue.current
         album_id = getattr(self, "_current_spotlight_album_id", None) if self.view == "home" else (song.album_id if song else None)
 
@@ -1599,6 +1601,8 @@ class TheIAPlayerApp(KitApp):
             album_id = song.album_id
 
         cached = self.dirs.read_cache(f"spotlight-{album_id}") if album_id else None
+        collaborators = []
+        booklet_text = ""
 
         if cached:
             album = cached.get("album", song.album if song else "N/A")
@@ -1610,6 +1614,16 @@ class TheIAPlayerApp(KitApp):
             composers = cached.get("composers", "N/A")
             key_musicians = cached.get("key_musicians", "N/A")
             trivia = cached.get("trivia", cached.get("text", ""))
+            booklet_text = cached.get("booklet_notes", "")
+
+            # Parse individual collaborators for relational search
+            import re
+            for raw_val in (producer, composers, key_musicians):
+                if raw_val and raw_val != "N/A":
+                    for name in raw_val.split(","):
+                        clean_name = re.sub(r"\s*\(.*?\)", "", name).strip()
+                        if clean_name and clean_name not in collaborators:
+                            collaborators.append(clean_name)
 
             audio_info = self.player.get_audio_info() if self.player else {}
             codec = (song.suffix if song else audio_info.get("codec", "FLAC")).upper()
@@ -1646,8 +1660,59 @@ class TheIAPlayerApp(KitApp):
             if self.copy_to_clipboard(text):
                 self.notify("📌 Créditos y detalles copiados al portapapeles", timeout=3)
 
-        self.push_screen(SpotlightModal("📌 ALBUM SPOTLIGHT & CRÉDITOS ROON", formatted, copy_callback=do_copy))
+        def _on_spotlight_done(result):
+            if isinstance(result, dict) and result.get("action") == "search":
+                q = result.get("query")
+                if q:
+                    from theiaplayer.screens import SearchModal
+                    self.push_screen(SearchModal(initial_query=q), self._search_done)
+
+        self.push_screen(
+            SpotlightModal(
+                "📌 ALBUM SPOTLIGHT & CRÉDITOS ROON",
+                formatted,
+                copy_callback=do_copy,
+                collaborators=collaborators,
+                booklet_text=booklet_text,
+            ),
+            _on_spotlight_done,
+        )
         self.set_timer(0.05, lambda: self.refresh_cover_art(force=True))
+
+    @work(group="versions")
+    async def action_show_album_versions(self) -> None:
+        """Find and select alternative album versions/remasters (Roon Album Versions)."""
+        song = self._highlighted_song() or self.queue.current
+        if not song or not song.artist:
+            self.notify("Highlight or play a track first", timeout=3)
+            return
+
+        artist_name = song.artist
+        album_name = song.album or ""
+        
+        import re
+        base_title = re.sub(r"[\(\[\{].*?[\)\]\}]", "", album_name).strip()
+        if not base_title:
+            base_title = album_name
+
+        try:
+            results = await self.client.search(artist_name)
+            albums = [a for a in results.albums if base_title.lower() in a.name.lower() or a.name.lower() in base_title.lower()]
+            if not albums or len(albums) <= 1:
+                self.notify(f"No alternative versions found for '{base_title}'", timeout=3)
+                return
+
+            from theiaplayer.screens import AlbumVersionsModal
+            
+            def _on_version_selected(res):
+                if res and "album_id" in res:
+                    aid = res["album_id"]
+                    self._play_view_from_top(f"album:{aid}")
+                    self.notify("Playing selected album version", timeout=2)
+
+            self.push_screen(AlbumVersionsModal(base_title, albums), _on_version_selected)
+        except Exception as e:
+            self.notify(f"Could not query album versions: {e}", severity="error", timeout=4)
 
     # ── rating ────────────────────────────────────────────────────────
     def action_rate(self, n: int) -> None:
