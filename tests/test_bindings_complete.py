@@ -47,6 +47,7 @@ _ALIASES: dict[str, str] = {
     "pin_toggle":           "toggle_pin",
     "signal_path":          "show_signal_path",
     "focus_filter":         "show_focus_filter",
+    "moods":                "show_moods",
 }
 
 

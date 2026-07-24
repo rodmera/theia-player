@@ -51,6 +51,7 @@ DEFAULT_KEYBINDS: dict = {
     "pin_toggle":           "i",
     "signal_path":          "I",
     "focus_filter":         "F",
+    "moods":                "M",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -357,6 +358,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["pin_toggle"],           "toggle_pin",           show=False),
         Binding(kb["signal_path"],          "show_signal_path",     "signal path",          show=True),
         Binding(kb["focus_filter"],         "show_focus_filter",    "focus filter",         show=True),
+        Binding(kb["moods"],                "show_moods",           "ambientes",            show=True),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),
     ]

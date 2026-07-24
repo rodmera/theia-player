@@ -105,6 +105,7 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `c` | ver y copiar detalles/trivia de Spotlight al portapapeles |
 | `I` | Inspeccionar cadena de audio (Signal Path / Bit-Perfect / DAC info) |
 | `F` | Modo Focus (filtros avanzados: Hi-Res, décadas, joyas no escuchadas) |
+| `M` | Ambientes & Modos (acceso directo a Lectura, Música Suave, Sesión Nocturna) |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |

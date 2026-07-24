@@ -153,6 +153,7 @@ class TheIAPlayerApp(KitApp):
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
         Binding("I", "show_signal_path", "signal path", show=True),
         Binding("F", "show_focus_filter", "focus filter", show=True),
+        Binding("M", "show_moods", "ambientes", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -463,34 +464,92 @@ class TheIAPlayerApp(KitApp):
                     row.append(pin["name"], style=palette.text)
                     options.append(Option(row, id=f"pin:{pin['id']}"))
 
-            options.append(Option(Text(" "), disabled=True))
-            options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
-            current_folder = None
+            # Categorize playlists into Ambientes, Géneros, and Playlists
+            mood_keywords = ["lectura", "suave", "nocturna", "work", "focus", "concentración", "chill", "relax", "ambient", "mezcla", "joyas", "80s", "top 50", "agregadas"]
+            
+            ambientes = []
+            generos = []
+            others = []
+            
             for p in self._playlists:
-                row = Text(no_wrap=True, overflow="ellipsis")
-                if "/" in p.name:
-                    folder, name = p.name.split("/", 1)
-                    if folder != current_folder:
-                        current_folder = folder
-                        folder_row = Text(no_wrap=True, overflow="ellipsis")
-                        is_collapsed = folder in self._collapsed_folders
-                        icon = "📁" if is_collapsed else "📂"
-                        folder_row.append(f" {icon} {folder}", style=f"bold {palette.peach}")
-                        options.append(Option(folder_row, id=f"folder:{folder}"))
-                    if folder in self._collapsed_folders:
-                        continue
-                    row.append("   ", style=palette.vfaint)
-                    row.append(f"{icons.LIST} ", style=palette.lav)
-                    row.append(name, style=palette.text)
-                    row.append(f" {p.song_count}♪", style=palette.vfaint)
+                name_l = p.name.lower()
+                if name_l.startswith(("género · ", "genre · ")):
+                    generos.append(p)
+                elif any(kw in name_l for kw in mood_keywords):
+                    ambientes.append(p)
                 else:
-                    current_folder = None
-                    row.append(f"{icons.LIST} ", style=palette.lav)
+                    others.append(p)
+
+            # Render Ambientes / Moods
+            if ambientes:
+                options.append(Option(Text(" "), disabled=True))
+                options.append(Option(Text(" ambientes & modos", style=f"bold {palette.peach}"), disabled=True))
+                icons_map = {
+                    "lectura": "📖",
+                    "suave": "☕",
+                    "nocturna": "🌙",
+                    "mezcla": "🔀",
+                    "joyas": "💎",
+                    "80s": "🎸",
+                    "top 50": "🔥",
+                    "agregadas": "✨",
+                }
+                for p in ambientes:
+                    name_l = p.name.lower()
+                    icon = "🎧"
+                    for kw, ic in icons_map.items():
+                        if kw in name_l:
+                            icon = ic
+                            break
+                    row = Text(no_wrap=True, overflow="ellipsis")
+                    row.append(f" {icon} ", style=palette.peach)
                     row.append(p.name, style=palette.text)
                     row.append(f" {p.song_count}♪", style=palette.vfaint)
-                options.append(Option(row, id=f"pl:{p.id}"))
+                    options.append(Option(row, id=f"pl:{p.id}"))
+
+            # Render Playlists
+            if others:
+                options.append(Option(Text(" "), disabled=True))
+                options.append(Option(Text(" playlists", style=f"bold {palette.dim}"), disabled=True))
+                current_folder = None
+                for p in others:
+                    row = Text(no_wrap=True, overflow="ellipsis")
+                    if "/" in p.name:
+                        folder, name = p.name.split("/", 1)
+                        if folder != current_folder:
+                            current_folder = folder
+                            folder_row = Text(no_wrap=True, overflow="ellipsis")
+                            is_collapsed = folder in self._collapsed_folders
+                            icon = "📁" if is_collapsed else "📂"
+                            folder_row.append(f" {icon} {folder}", style=f"bold {palette.peach}")
+                            options.append(Option(folder_row, id=f"folder:{folder}"))
+                        if folder in self._collapsed_folders:
+                            continue
+                        row.append("   ", style=palette.vfaint)
+                        row.append(f"{icons.LIST} ", style=palette.lav)
+                        row.append(name, style=palette.text)
+                        row.append(f" {p.song_count}♪", style=palette.vfaint)
+                    else:
+                        current_folder = None
+                        row.append(f"{icons.LIST} ", style=palette.lav)
+                        row.append(p.name, style=palette.text)
+                        row.append(f" {p.song_count}♪", style=palette.vfaint)
+                    options.append(Option(row, id=f"pl:{p.id}"))
+
+            # Render Géneros
+            if generos:
+                options.append(Option(Text(" "), disabled=True))
+                options.append(Option(Text(" géneros", style=f"bold {palette.dim}"), disabled=True))
+                for p in generos:
+                    clean_name = p.name.split("·", 1)[1].strip() if "·" in p.name else p.name
+                    row = Text(no_wrap=True, overflow="ellipsis")
+                    row.append("  🎷 ", style=palette.blue)
+                    row.append(clean_name, style=palette.text)
+                    row.append(f" {p.song_count}♪", style=palette.vfaint)
+                    options.append(Option(row, id=f"pl:{p.id}"))
+
             new_row = Text(no_wrap=True)
-            new_row.append(f"{icons.PLUS} ", style=palette.green)
+            new_row.append(f" {icons.PLUS} ", style=palette.green)
             new_row.append("new playlist", style=palette.sub)
             options.append(Option(new_row, id="pl-new"))
 
@@ -1286,6 +1345,20 @@ class TheIAPlayerApp(KitApp):
                 self._show_songs(self._songs, self._tracks_title(self.view))
 
         self.push_screen(FocusModal(), _on_focus_done)
+
+    def action_show_moods(self) -> None:
+        from theiaplayer.screens import MoodsModal
+        
+        def _on_mood_selected(result) -> None:
+            if not result:
+                return
+            pid = result.get("playlist_id")
+            name = result.get("name", "Ambiente")
+            if pid:
+                self._play_view_from_top(f"pl:{pid}")
+                self.notify(f"Modo activado: {name}", timeout=3)
+
+        self.push_screen(MoodsModal(self._playlists), _on_mood_selected)
 
     def action_switch_audio_device(self) -> None:
         if self.player is None:

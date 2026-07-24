@@ -1110,3 +1110,109 @@ class FocusModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class MoodsModal(ModalScreen):
+    """Ambient / Mood Playlists quick-selector modal."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+        Binding("1", "select_num(1)", show=False),
+        Binding("2", "select_num(2)", show=False),
+        Binding("3", "select_num(3)", show=False),
+        Binding("4", "select_num(4)", show=False),
+        Binding("5", "select_num(5)", show=False),
+        Binding("6", "select_num(6)", show=False),
+        Binding("7", "select_num(7)", show=False),
+        Binding("8", "select_num(8)", show=False),
+        Binding("9", "select_num(9)", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    MoodsModal { align: center middle; background: $kit-overlay; }
+    MoodsModal #moods-box {
+        width: 62; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    MoodsModal #moods-title { margin-bottom: 1; text-style: bold; }
+    MoodsModal #moods-list { height: auto; max-height: 18; margin-top: 1; }
+    MoodsModal #moods-footer { margin-top: 1; color: $text-muted; text-align: center; }
+    """
+
+    def __init__(self, playlists: list) -> None:
+        super().__init__()
+        self._playlists = playlists
+        self._mood_playlists = self._filter_mood_playlists(playlists)
+
+    def _filter_mood_playlists(self, playlists: list) -> list:
+        keywords = ["lectura", "suave", "nocturna", "work", "focus", "concentración", "chill", "relax", "ambient", "mezcla", "joyas", "80s", "top 50", "agregadas"]
+        matched = []
+        for p in playlists:
+            name_lower = p.name.lower()
+            if not name_lower.startswith("género · ") and not name_lower.startswith("genre · "):
+                if any(kw in name_lower for kw in keywords) or True:
+                    matched.append(p)
+        return matched[:9]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="moods-box"):
+            yield Static(Text("🎧 AMBIENTES & MODOS DE ESCUCHA", style=f"bold {palette.peach}"), id="moods-title")
+            yield Static(Text("Selecciona un ambiente para iniciar reproducción instantánea:\n", style=palette.dim))
+            yield NavList(id="moods-list")
+            yield Static(Text("press 1-9 or Enter to play · Esc to cancel", style=palette.dim), id="moods-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#moods-box"))
+        self._render_items()
+        self.query_one("#moods-list", NavList).focus()
+
+    def _render_items(self) -> None:
+        ol = self.query_one("#moods-list", NavList)
+        options = []
+        icons_map = {
+            "lectura": "📖",
+            "suave": "☕",
+            "nocturna": "🌙",
+            "mezcla": "🔀",
+            "joyas": "💎",
+            "80s": "🎸",
+            "top 50": "🔥",
+            "agregadas": "✨",
+        }
+        for i, p in enumerate(self._mood_playlists, 1):
+            name_lower = p.name.lower()
+            icon = "🎧"
+            for kw, ic in icons_map.items():
+                if kw in name_lower:
+                    icon = ic
+                    break
+            row = Text()
+            row.append(f"  [{i}] {icon} ", style=palette.peach)
+            row.append(p.name, style=f"bold {palette.text}")
+            row.append(f" ({p.song_count}♪)", style=palette.dim)
+            options.append(Option(row, id=f"pl:{p.id}"))
+
+        if not options:
+            options.append(Option(Text("  No se encontraron playlists de ambiente en Navidrome", style=palette.dim), disabled=True))
+
+        ol.clear_options()
+        ol.add_options(options)
+
+    @on(OptionList.OptionSelected)
+    def _selected(self, event: OptionList.OptionSelected) -> None:
+        oid = event.option.id
+        if oid and oid.startswith("pl:"):
+            pid = oid.split(":", 1)[1]
+            p = next((x for x in self._playlists if x.id == pid), None)
+            name = p.name if p else "Ambiente"
+            self.dismiss({"playlist_id": pid, "name": name})
+
+    def action_select_num(self, num: int) -> None:
+        idx = num - 1
+        if 0 <= idx < len(self._mood_playlists):
+            p = self._mood_playlists[idx]
+            self.dismiss({"playlist_id": p.id, "name": p.name})
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
