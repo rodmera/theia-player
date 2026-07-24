@@ -483,7 +483,7 @@ class TheIAPlayerApp(KitApp):
             # Render Ambientes / Moods
             if ambientes:
                 options.append(Option(Text(" "), disabled=True))
-                options.append(Option(Text(" ambientes & modos", style=f"bold {palette.peach}"), disabled=True))
+                options.append(Option(Text(" ambientes & modos", style=f"bold {palette.dim}"), disabled=True))
                 icons_map = {
                     "lectura": "📖",
                     "suave": "☕",
@@ -502,7 +502,7 @@ class TheIAPlayerApp(KitApp):
                             icon = ic
                             break
                     row = Text(no_wrap=True, overflow="ellipsis")
-                    row.append(f" {icon} ", style=palette.peach)
+                    row.append(f" {icon} ", style=palette.sub)
                     row.append(p.name, style=palette.text)
                     row.append(f" {p.song_count}♪", style=palette.vfaint)
                     options.append(Option(row, id=f"pl:{p.id}"))
@@ -870,7 +870,7 @@ class TheIAPlayerApp(KitApp):
             has_content = bool(cached) or bool(spotlight_text)
             if has_content:
                 options.append(Option(Text(""), disabled=True))
-                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] copiar info  ·  [I] signal path  ", style=f"reverse bold {palette.peach}"), disabled=True))
+                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] copiar info  ·  [I] signal path", style=f"bold {palette.lav}"), disabled=True))
                 options.append(Option(Text(""), disabled=True))
 
                 if cached:
@@ -887,15 +887,15 @@ class TheIAPlayerApp(KitApp):
 
                     options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
                     options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
-                    options.append(Option(Text(f"  📅 Año:     {year}", style=f"bold {palette.sub}"), disabled=True))
-                    options.append(Option(Text(f"  🏷️ Sello:   {label}", style=f"bold {palette.sub}"), disabled=True))
-                    options.append(Option(Text(f"  🎸 Género:  {genre}", style=f"bold {palette.sub}"), disabled=True))
+                    options.append(Option(Text(f"  📅 Año:     {year}", style=palette.sub), disabled=True))
+                    options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.sub), disabled=True))
+                    options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.sub), disabled=True))
                     if producer and producer != "N/A":
-                        options.append(Option(Text(f"  🎛️ Mezcla:  {producer}", style=f"bold {palette.peach}"), disabled=True))
+                        options.append(Option(Text(f"  🎛️ Mezcla:  {producer}", style=f"bold {palette.text}"), disabled=True))
                     if composers and composers != "N/A":
-                        options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=f"bold {palette.peach}"), disabled=True))
+                        options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=f"bold {palette.text}"), disabled=True))
                     if key_musicians and key_musicians != "N/A":
-                        options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=f"bold {palette.peach}"), disabled=True))
+                        options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=f"bold {palette.text}"), disabled=True))
                     options.append(Option(Text(""), disabled=True))
 
                     import textwrap
