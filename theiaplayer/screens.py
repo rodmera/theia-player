@@ -933,3 +933,180 @@ class PlaylistPickerModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class SignalPathModal(ModalScreen):
+    """Signal Path Inspector modal displaying active audio chain, DSP, and hardware DAC info."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_modal", "close"),
+        Binding("enter", "dismiss_modal", "close"),
+        Binding("q", "dismiss_modal", "close"),
+        Binding("I", "dismiss_modal", "close"),
+    ]
+
+    DEFAULT_CSS = """
+    SignalPathModal { align: center middle; background: $kit-overlay; }
+    SignalPathModal #signal-box {
+        width: 68; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    SignalPathModal #signal-title { margin-bottom: 1; text-style: bold; }
+    SignalPathModal VerticalScroll { height: auto; max-height: 22; margin-bottom: 1; }
+    SignalPathModal VerticalScroll Static { background: $kit-modal-bg; color: $text; }
+    SignalPathModal #signal-footer { height: 1; color: $text-muted; text-align: center; }
+    """
+
+    def __init__(self, song, audio_info: dict, player_opts: dict) -> None:
+        super().__init__()
+        self._song = song
+        self._audio = audio_info or {}
+        self._opts = player_opts or {}
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="signal-box"):
+            yield Static(Text("🔊 SIGNAL PATH / AUDIO CHAIN", style=f"bold {palette.peach}"), id="signal-title")
+            with VerticalScroll():
+                yield Static(self._build_content())
+            yield Static(Text("press Esc / Enter / q to close", style=palette.dim), id="signal-footer")
+
+    def _build_content(self) -> Text:
+        t = Text()
+        s = self._song
+        info = self._audio
+
+        t.append("1. Source Track & File\n", style=f"bold {palette.blue}")
+        if s:
+            t.append(f"  • Track:       {s.title} — {s.artist}\n", style=palette.text)
+            t.append(f"  • Album:       {s.album} ({s.year or 'N/A'})\n", style=palette.dim)
+            suffix = (s.suffix or info.get("codec") or "audio").upper()
+            br = s.bit_rate or (info.get("bitrate", 0) // 1000 if info.get("bitrate") else 0)
+            t.append(f"  • Format:      {suffix} ({'Lossless' if suffix == 'FLAC' else 'Lossy'})\n", style=palette.text)
+            t.append(f"  • Bitrate:     {br} kbps\n", style=palette.dim)
+            sr = info.get("samplerate")
+            fmt = info.get("format")
+            sr_str = f"{sr/1000:.1f} kHz" if sr else "44.1 kHz (standard)"
+            fmt_str = f"{fmt}" if fmt else "16-bit / pcm"
+            t.append(f"  • Sample Rate: {sr_str} [{fmt_str}]\n\n", style=palette.dim)
+        else:
+            t.append("  • No active track loaded\n\n", style=palette.dim)
+
+        t.append("2. Signal Processing (mpv DSP)\n", style=f"bold {palette.peach}")
+        rg_mode = self._opts.get("replaygain", "album")
+        rg_preamp = self._opts.get("replaygain_preamp", 0.0)
+        t.append(f"  • ReplayGain:  {rg_mode} (Preamp: {rg_preamp:+.1f} dB)\n", style=palette.text)
+        t.append(f"  • Gapless:     Active ({self._opts.get('gapless', 'yes')})\n", style=palette.dim)
+        eq_active = self._opts.get("eq_enabled", False)
+        t.append(f"  • Equalizer:   {'Custom Curve' if eq_active else 'Flat / Direct Path'}\n\n", style=palette.dim)
+
+        t.append("3. Output & Hardware DAC\n", style=f"bold {palette.green}")
+        driver = info.get("ao") or self._opts.get("ao") or "pipewire"
+        t.append(f"  • Driver (ao): {driver}\n", style=palette.text)
+        device = info.get("device") or "default"
+        exclusive = self._opts.get("audio_exclusive", False)
+        mode_str = "Bit-Perfect Direct (Hardware Exclusive)" if exclusive else "Shared System Mixer"
+        t.append(f"  • Output Mode: {mode_str}\n", style=f"bold {palette.sub}")
+        t.append(f"  • Device:      {device}\n", style=palette.dim)
+        return t
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
+
+
+class FocusModal(ModalScreen):
+    """Interactive Focus Mode filter modal (Roon-style multi-criteria filter)."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("1", "select_preset(1)", show=False),
+        Binding("2", "select_preset(2)", show=False),
+        Binding("3", "select_preset(3)", show=False),
+        Binding("4", "select_preset(4)", show=False),
+        Binding("5", "select_preset(5)", show=False),
+        Binding("c", "clear_filter", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    FocusModal { align: center middle; background: $kit-overlay; }
+    FocusModal #focus-box {
+        width: 58; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    FocusModal #focus-title { margin-bottom: 1; text-style: bold; }
+    FocusModal Input { background: transparent; border: round $kit-border; margin-top: 1; }
+    FocusModal Input:focus { border: round $kit-border-focus; }
+    FocusModal #focus-footer { margin-top: 1; color: $text-muted; text-align: center; }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="focus-box"):
+            yield Static(Text("🎯 FOCUS MODE / FILTROS AVANZADOS", style=f"bold {palette.peach}"), id="focus-title")
+            t = Text()
+            t.append("Selecciona un criterio de enfoque para la biblioteca:\n\n", style=palette.dim)
+            t.append("  [1] 💽 Solo Hi-Res / Lossless (FLAC / >1000 kbps)\n", style=palette.green)
+            t.append("  [2] 📻 Joyas no escuchadas (0 reproducciones)\n", style=palette.sub)
+            t.append("  [3] 🎸 Clásicos de los 80s (1980 - 1989)\n", style=palette.peach)
+            t.append("  [4] 💿 Clásicos de los 90s (1990 - 1999)\n", style=palette.blue)
+            t.append("  [5] 🔍 Filtro personalizado por consulta\n\n", style=palette.lav)
+            t.append("  [c] ✖ Borrar filtros activos", style=palette.red)
+            yield Static(t)
+            yield Input(placeholder="ej: year:1980-1989 / bitrate:>320 / plays:0 / genre:rock", id="focus-input")
+            yield Static(Text("press 1-5 or type custom query · Esc to cancel", style=palette.dim), id="focus-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#focus-box"))
+
+    @on(Input.Submitted, "#focus-input")
+    def _custom_submitted(self, event: Input.Submitted) -> None:
+        query = event.value.strip()
+        if not query:
+            self.dismiss({"action": "clear"})
+            return
+        
+        filters = {}
+        parts = query.split()
+        for p in parts:
+            if ":" in p:
+                k, v = p.split(":", 1)
+                k = k.lower()
+                if k == "year":
+                    if "-" in v:
+                        y1, y2 = v.split("-", 1)
+                        filters["min_year"] = int(y1)
+                        filters["max_year"] = int(y2)
+                    else:
+                        filters["min_year"] = int(v)
+                        filters["max_year"] = int(v)
+                elif k in ("bitrate", "min_bitrate"):
+                    filters["min_bitrate"] = int(v.replace(">", "").replace("k", "000"))
+                elif k == "plays":
+                    filters["max_play_count"] = int(v)
+                elif k == "genre":
+                    filters["include_genres"] = [v]
+            elif p.lower() in ("lossless", "flac"):
+                filters["lossless_only"] = True
+            elif p.lower() in ("unplayed", "fresh"):
+                filters["max_play_count"] = 0
+
+        self.dismiss({"action": "apply", "filters": filters, "label": f"custom ({query})"})
+
+    def action_select_preset(self, num: int) -> None:
+        presets = {
+            1: ({"lossless_only": True}, "Hi-Res / Lossless"),
+            2: ({"max_play_count": 0}, "Unplayed Gems"),
+            3: ({"min_year": 1980, "max_year": 1989}, "80s Classics"),
+            4: ({"min_year": 1990, "max_year": 1999}, "90s Classics"),
+            5: (None, None),
+        }
+        f_dict, label = presets.get(num, (None, None))
+        if num == 5:
+            self.query_one("#focus-input", Input).focus()
+            return
+        if f_dict:
+            self.dismiss({"action": "apply", "filters": f_dict, "label": label})
+
+    def action_clear_filter(self) -> None:
+        self.dismiss({"action": "clear"})
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

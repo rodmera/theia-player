@@ -207,6 +207,20 @@ class NowPlaying(Static):
         if not getattr(self.app, "_notify_on", True):
             right.append("  [Silent]", style="bold " + palette.peach)
 
+        if self.song is not None:
+            s = self.song
+            suffix = (s.suffix or "").lower()
+            br = s.bit_rate or 0
+            if suffix == "flac" or br >= 1000:
+                if br >= 2000:
+                    right.append("  [FLAC 24/96]", style=f"bold {palette.green}")
+                else:
+                    right.append("  [FLAC Lossless]", style=f"bold {palette.green}")
+            elif br > 0:
+                right.append(f"  [{br}k]", style=palette.dim)
+            elif suffix:
+                right.append(f"  [{suffix.upper()}]", style=palette.dim)
+
         bar_width = max(4, width - len(left_time) - len(right_time) - right.cell_len)
         frac = self.position / self.duration if self.duration > 0 else 0.0
         pulse = (math.sin(self._tick * 0.55) + 1) / 2 if self.playing else 0.0

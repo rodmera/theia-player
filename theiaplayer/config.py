@@ -49,6 +49,8 @@ DEFAULT_KEYBINDS: dict = {
     "help":                 "question_mark",
     "quit":                 "q",
     "pin_toggle":           "i",
+    "signal_path":          "I",
+    "focus_filter":         "F",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -272,6 +274,12 @@ def filter_songs(songs: list, filters: dict) -> list:
     min_dur = int(filters.get("min_duration", 0))
     max_dur = int(filters.get("max_duration", 0))
     min_plays = int(filters.get("min_play_count", 0))
+    min_year = int(filters.get("min_year", 0))
+    max_year = int(filters.get("max_year", 0))
+    min_bitrate = int(filters.get("min_bitrate", 0))
+    lossless_only = bool(filters.get("lossless_only", False))
+    max_plays = filters.get("max_play_count")
+    include_genres = [g.lower() for g in filters.get("include_genres", [])]
 
     def keep(s) -> bool:
         if exclude_titles and any(t in s.title.lower() for t in exclude_titles):
@@ -285,6 +293,21 @@ def filter_songs(songs: list, filters: dict) -> list:
         if max_dur and s.duration >= max_dur:
             return False
         if min_plays and s.play_count < min_plays:
+            return False
+        if min_year and getattr(s, "year", None) and s.year < min_year:
+            return False
+        if max_year and getattr(s, "year", None) and s.year > max_year:
+            return False
+        if min_bitrate and getattr(s, "bit_rate", None) and s.bit_rate < min_bitrate:
+            return False
+        if lossless_only:
+            suf = getattr(s, "suffix", "").lower()
+            br = getattr(s, "bit_rate", 0) or 0
+            if suf != "flac" and br < 1000:
+                return False
+        if max_plays is not None and getattr(s, "play_count", 0) > int(max_plays):
+            return False
+        if include_genres and not any(g in getattr(s, "genre", "").lower() for g in include_genres):
             return False
         return True
 
@@ -332,6 +355,8 @@ def build_bindings(keybinds: dict):
         Binding(kb["theme_cycle"],          "cycle_kit_theme",      "theme"),
         Binding(kb["theme_pick"],           "change_theme",         show=False),
         Binding(kb["pin_toggle"],           "toggle_pin",           show=False),
+        Binding(kb["signal_path"],          "show_signal_path",     "signal path",          show=True),
+        Binding(kb["focus_filter"],         "show_focus_filter",    "focus filter",         show=True),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),
     ]

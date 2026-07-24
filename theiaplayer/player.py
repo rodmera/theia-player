@@ -176,6 +176,30 @@ class Player:
         self._m.mute = not self._m.mute
         return bool(self._m.mute)
 
+    def get_audio_info(self) -> dict:
+        """Query mpv for active stream parameters and audio output driver."""
+        if not MPV_AVAILABLE or self._m is None:
+            return {}
+        try:
+            codec = str(getattr(self._m, "audio_codec", "") or "")
+            params = getattr(self._m, "audio_params", {}) or {}
+            bitrate = getattr(self._m, "audio_bitrate", None)
+            device = str(getattr(self._m, "audio_device", "") or "")
+            ao = getattr(self._m, "ao", "")
+            if isinstance(ao, list) and ao:
+                ao = ao[0].get("name", "")
+            return {
+                "codec": codec,
+                "samplerate": params.get("samplerate") if isinstance(params, dict) else None,
+                "format": params.get("format") if isinstance(params, dict) else None,
+                "channels": params.get("channels") if isinstance(params, dict) else None,
+                "bitrate": bitrate,
+                "device": device,
+                "ao": str(ao or getattr(self, "_ao", "pipewire")),
+            }
+        except Exception:
+            return {}
+
     def get_audio_devices(self) -> list[dict]:
         try:
             raw_devices = self._m.audio_device_list or []

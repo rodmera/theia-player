@@ -151,6 +151,8 @@ class TheIAPlayerApp(KitApp):
         Binding("ctrl+e,y", "show_equalizer", "eq", show=True),
         Binding("ctrl+g", "switch_server", "switch server", show=True),
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
+        Binding("I", "show_signal_path", "signal path", show=True),
+        Binding("F", "show_focus_filter", "focus filter", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -708,6 +710,9 @@ class TheIAPlayerApp(KitApp):
                     f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
                     f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
                     f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
+                    f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
+                    f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
+                    f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
                     f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\"\n"
                     f"}}\n"
                     f"Sé sumamente preciso y verídico históricamente en los datos."
@@ -746,7 +751,7 @@ class TheIAPlayerApp(KitApp):
                         "status": "cached"
                     }
                 
-                for k in ("album", "artist", "year", "label", "genre"):
+                for k in ("album", "artist", "year", "label", "genre", "producer", "composers", "key_musicians"):
                     if not data.get(k) or data.get(k) == "N/A":
                         data[k] = existing.get(k, "N/A")
 
@@ -816,11 +821,21 @@ class TheIAPlayerApp(KitApp):
                     genre = cached.get("genre", "N/A")
                     trivia = cached.get("trivia", cached.get("text", ""))
 
+                    producer = cached.get("producer")
+                    composers = cached.get("composers")
+                    key_musicians = cached.get("key_musicians")
+
                     options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
                     options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
                     options.append(Option(Text(f"  📅 Año:     {year}", style=palette.dim), disabled=True))
                     options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.dim), disabled=True))
                     options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.dim), disabled=True))
+                    if producer and producer != "N/A":
+                        options.append(Option(Text(f"  🎛️ Mezcla:  {producer}", style=palette.dim), disabled=True))
+                    if composers and composers != "N/A":
+                        options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=palette.dim), disabled=True))
+                    if key_musicians and key_musicians != "N/A":
+                        options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=palette.dim), disabled=True))
                     options.append(Option(Text(""), disabled=True))
 
                     import textwrap
@@ -1235,6 +1250,42 @@ class TheIAPlayerApp(KitApp):
             self.notify("Server connected successfully!", timeout=2)
         except Exception as e:
             self.notify(f"Connection failed: {e}", severity="error", timeout=4)
+
+    def action_show_signal_path(self) -> None:
+        from theiaplayer.screens import SignalPathModal
+        current_song = self.queue.current
+        audio_info = self.player.get_audio_info() if self.player else {}
+        player_opts = {
+            "replaygain": self._pcfg.get("replaygain", "album"),
+            "replaygain_preamp": self._pcfg.get("replaygain_preamp", 0.0),
+            "gapless": self._pcfg.get("gapless", "yes"),
+            "eq_enabled": getattr(self, "_eq_enabled", False),
+            "ao": getattr(self.player, "_ao", "pipewire") if self.player else "pipewire",
+            "audio_exclusive": self._pcfg.get("audio_exclusive", False),
+        }
+        self.push_screen(SignalPathModal(current_song, audio_info, player_opts))
+
+    def action_show_focus_filter(self) -> None:
+        from theiaplayer.screens import FocusModal
+        
+        def _on_focus_done(result) -> None:
+            if not result:
+                return
+            act = result.get("action")
+            if act == "clear":
+                self._pcfg["filters"] = dict(playerconfig.DEFAULT_FILTERS)
+                self.notify("Focus mode cleared", timeout=2)
+            elif act == "apply":
+                new_f = dict(playerconfig.DEFAULT_FILTERS)
+                new_f.update(result.get("filters", {}))
+                self._pcfg["filters"] = new_f
+                label = result.get("label", "custom")
+                self.notify(f"Focus Mode: {label}", timeout=3)
+            
+            if self._songs:
+                self._show_songs(self._songs, self._tracks_title(self.view))
+
+        self.push_screen(FocusModal(), _on_focus_done)
 
     def action_switch_audio_device(self) -> None:
         if self.player is None:
