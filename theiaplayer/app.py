@@ -641,20 +641,34 @@ class TheIAPlayerApp(KitApp):
                 # 2. Fetch songs of that selected album
                 songs = await self.client.get_album_songs(album_id)
 
-                # 3. Handle Album Spotlight trivia
+                # 3. Handle Album Spotlight trivia & local JSON cache
                 self._current_spotlight_album_id = album_id
                 cache_key = f"spotlight-{album_id}"
                 cached = self.dirs.read_cache(cache_key)
 
-                if cached and ("trivia" in cached or "text" in cached):
-                    self._current_spotlight_text = cached.get("trivia", cached.get("text", ""))
-                else:
+                if not cached:
+                    # Populate initial instant cache from local track tags/Subsonic metadata
+                    first_song = songs[0] if songs else None
+                    cached = {
+                        "album": album_name or (first_song.album if first_song else "N/A"),
+                        "artist": artist_name or (first_song.artist if first_song else "N/A"),
+                        "year": str(first_song.year) if (first_song and first_song.year) else "N/A",
+                        "label": "N/A",
+                        "genre": first_song.genre if (first_song and first_song.genre) else "N/A",
+                        "trivia": "",
+                        "status": "pending",
+                    }
+                    self.dirs.write_cache(cache_key, cached)
+
+                self._current_spotlight_text = cached.get("trivia", "")
+
+                # Call Gemini ONLY if trivia is missing and status is not already "failed" or "cached"
+                status = cached.get("status", "")
+                has_trivia = bool(cached.get("trivia"))
+                if not has_trivia and status != "failed":
                     import os
                     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-                        self._current_spotlight_text = "Cargando trivia del álbum..."
-                        self._fetch_spotlight_trivia_async(album_id, album_name, artist_name)
-                    else:
-                        self._current_spotlight_text = ""
+                        self._fetch_spotlight_trivia_async(album_id, album_name or "N/A", artist_name or "N/A")
 
                 return songs
             except Exception:
@@ -679,6 +693,8 @@ class TheIAPlayerApp(KitApp):
 
     @work(exclusive=True, group="spotlight_gen")
     async def _fetch_spotlight_trivia_async(self, album_id: str, album_name: str, artist_name: str) -> None:
+        cache_key = f"spotlight-{album_id}"
+        existing = self.dirs.read_cache(cache_key) or {}
         try:
             def run_gemini():
                 from google import genai
@@ -718,26 +734,35 @@ class TheIAPlayerApp(KitApp):
                 
                 try:
                     data = json.loads(cleaned_text)
+                    data["status"] = "cached"
                 except Exception:
-                    # Fallback to plain text structure if JSON parse fails
                     data = {
                         "album": album_name,
                         "artist": artist_name,
-                        "year": "N/A",
-                        "label": "N/A",
-                        "genre": "N/A",
-                        "trivia": cleaned_text
+                        "year": existing.get("year", "N/A"),
+                        "label": existing.get("label", "N/A"),
+                        "genre": existing.get("genre", "N/A"),
+                        "trivia": cleaned_text,
+                        "status": "cached"
                     }
-                    
-                cache_key = f"spotlight-{album_id}"
+                
+                for k in ("album", "artist", "year", "label", "genre"):
+                    if not data.get(k) or data.get(k) == "N/A":
+                        data[k] = existing.get(k, "N/A")
+
+                data["status"] = "cached"
                 self.dirs.write_cache(cache_key, data)
                 
                 if getattr(self, "_current_spotlight_album_id", None) == album_id:
                     self._current_spotlight_text = data.get("trivia", "")
                     if self.view == "home":
                         self._render_home_spotlight()
+            else:
+                existing["status"] = "failed"
+                self.dirs.write_cache(cache_key, existing)
         except Exception:
-            pass
+            existing["status"] = "failed"
+            self.dirs.write_cache(cache_key, existing)
 
     def _render_home_spotlight(self) -> None:
         self._show_songs(self._songs, "home · spotlight")
