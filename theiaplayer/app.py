@@ -147,7 +147,7 @@ class TheIAPlayerApp(KitApp):
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
         Binding("L", "show_lyrics", "lyrics", show=True),
-        Binding("c", "copy_text", "copy info", show=True),
+        Binding("c", "copy_text", "album credits", show=True),
         Binding("ctrl+e,y", "show_equalizer", "eq", show=True),
         Binding("ctrl+g", "switch_server", "switch server", show=True),
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
@@ -887,15 +887,15 @@ class TheIAPlayerApp(KitApp):
 
                     options.append(Option(Text(f"  💿 Álbum:   {album}", style=f"bold {palette.text}"), disabled=True))
                     options.append(Option(Text(f"  👤 Artista: {artist}", style=f"bold {palette.text}"), disabled=True))
-                    options.append(Option(Text(f"  📅 Año:     {year}", style=palette.dim), disabled=True))
-                    options.append(Option(Text(f"  🏷️ Sello:   {label}", style=palette.dim), disabled=True))
-                    options.append(Option(Text(f"  🎸 Género:  {genre}", style=palette.dim), disabled=True))
+                    options.append(Option(Text(f"  📅 Año:     {year}", style=f"bold {palette.sub}"), disabled=True))
+                    options.append(Option(Text(f"  🏷️ Sello:   {label}", style=f"bold {palette.sub}"), disabled=True))
+                    options.append(Option(Text(f"  🎸 Género:  {genre}", style=f"bold {palette.sub}"), disabled=True))
                     if producer and producer != "N/A":
-                        options.append(Option(Text(f"  🎛️ Mezcla:  {producer}", style=palette.dim), disabled=True))
+                        options.append(Option(Text(f"  🎛️ Mezcla:  {producer}", style=f"bold {palette.peach}"), disabled=True))
                     if composers and composers != "N/A":
-                        options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=palette.dim), disabled=True))
+                        options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=f"bold {palette.peach}"), disabled=True))
                     if key_musicians and key_musicians != "N/A":
-                        options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=palette.dim), disabled=True))
+                        options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=f"bold {palette.peach}"), disabled=True))
                     options.append(Option(Text(""), disabled=True))
 
                     import textwrap
@@ -1591,54 +1591,63 @@ class TheIAPlayerApp(KitApp):
             pass
 
     def action_copy_text(self) -> None:
-        """Copy Spotlight/trivia details or highlighted track info to system clipboard and open modal."""
-        if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
-            cache_key = f"spotlight-{self._current_spotlight_album_id}"
-            cached = self.dirs.read_cache(cache_key)
-            if cached:
-                album = cached.get("album", "N/A")
-                artist = cached.get("artist", "N/A")
-                year = cached.get("year", "N/A")
-                label = cached.get("label", "N/A")
-                genre = cached.get("genre", "N/A")
-                trivia = cached.get("trivia", cached.get("text", ""))
+        """Open Roon-style Album Spotlight & Credits modal for current or highlighted song/album."""
+        song = self._highlighted_song() or self.queue.current
+        album_id = getattr(self, "_current_spotlight_album_id", None) if self.view == "home" else (song.album_id if song else None)
 
-                formatted = (
-                    f"📌 ALBUM SPOTLIGHT\n\n"
-                    f"💿 Álbum:   {album}\n"
-                    f"👤 Artista: {artist}\n"
-                    f"📅 Año:     {year}\n"
-                    f"🏷️ Sello:   {label}\n"
-                    f"🎸 Género:  {genre}\n\n"
-                    f"{trivia}"
-                )
-            else:
-                formatted = getattr(self, "_current_spotlight_text", "")
+        if not album_id and song and song.album_id:
+            album_id = song.album_id
 
-            if formatted:
-                copied = self.copy_to_clipboard(formatted)
-                if copied:
-                    self.notify("📌 Reseña y detalles copiados al portapapeles", timeout=3)
+        cached = self.dirs.read_cache(f"spotlight-{album_id}") if album_id else None
 
-                def do_copy(text: str):
-                    if self.copy_to_clipboard(text):
-                        self.notify("📌 Copiado al portapapeles", timeout=3)
+        if cached:
+            album = cached.get("album", song.album if song else "N/A")
+            artist = cached.get("artist", song.artist if song else "N/A")
+            year = cached.get("year", str(song.year) if (song and song.year) else "N/A")
+            label = cached.get("label", "N/A")
+            genre = cached.get("genre", song.genre if (song and song.genre) else "N/A")
+            producer = cached.get("producer", "N/A")
+            composers = cached.get("composers", "N/A")
+            key_musicians = cached.get("key_musicians", "N/A")
+            trivia = cached.get("trivia", cached.get("text", ""))
 
-                self.push_screen(SpotlightModal("📌 ALBUM SPOTLIGHT", formatted, copy_callback=do_copy))
-                self.set_timer(0.05, lambda: self.refresh_cover_art(force=True))
-            else:
-                self.notify("no hay trivia disponible para copiar", timeout=3)
+            audio_info = self.player.get_audio_info() if self.player else {}
+            codec = (song.suffix if song else audio_info.get("codec", "FLAC")).upper()
+            br = song.bit_rate if song else audio_info.get("bitrate", 0)
+
+            formatted = (
+                f"📌 ALBUM SPOTLIGHT & CRÉDITOS ROON\n\n"
+                f"💿 Álbum:     {album}\n"
+                f"👤 Artista:   {artist}\n"
+                f"📅 Año:       {year}\n"
+                f"🏷️ Sello:     {label}\n"
+                f"🎸 Género:    {genre}\n"
+                f"🎛️ Mezcla:    {producer}\n"
+                f"✍️ Autor:     {composers}\n"
+                f"🎷 Músicos:   {key_musicians}\n\n"
+                f"📖 Reseña / Historia:\n{trivia}\n\n"
+                f"🔊 Cadena de Audio (Signal Path):\n"
+                f"  Formato: {codec} ({br} kbps) · Driver: {audio_info.get('ao', 'pipewire')}"
+            )
+        elif song:
+            formatted = (
+                f"📌 DETALLES DEL TRACK & ÁLBUM\n\n"
+                f"🎵 Tema:      {song.title}\n"
+                f"👤 Artista:   {song.artist}\n"
+                f"💿 Álbum:     {song.album} ({song.year or 'N/A'})\n"
+                f"🎸 Género:    {song.genre or 'N/A'}\n"
+                f"🔊 Formato:   {(song.suffix or 'audio').upper()} ({song.bit_rate or '?'} kbps)"
+            )
         else:
-            song = self._highlighted_song() or self.queue.current
-            if song:
-                text = f"{song.title} - {song.artist} ({song.album})"
-                copied = self.copy_to_clipboard(text)
-                if copied:
-                    self.notify(f"copiado: {text}", timeout=3)
-                else:
-                    self.notify(f"{text}", timeout=4)
-            else:
-                self.notify("nada que copiar", timeout=3)
+            self.notify("No hay canción ni álbum seleccionado para ver créditos", timeout=3)
+            return
+
+        def do_copy(text: str):
+            if self.copy_to_clipboard(text):
+                self.notify("📌 Créditos y detalles copiados al portapapeles", timeout=3)
+
+        self.push_screen(SpotlightModal("📌 ALBUM SPOTLIGHT & CRÉDITOS ROON", formatted, copy_callback=do_copy))
+        self.set_timer(0.05, lambda: self.refresh_cover_art(force=True))
 
     # ── rating ────────────────────────────────────────────────────────
     def action_rate(self, n: int) -> None:
