@@ -37,7 +37,13 @@ async def test_fetch_songs_for_home_view_spotlights_playing_album():
     app = TheIAPlayerApp.__new__(TheIAPlayerApp)
     app.client = MagicMock()
     app.dirs = MagicMock()
-    app.dirs.read_cache = MagicMock(return_value={"trivia": "The Smiths trivia"})
+    app.dirs.read_cache = MagicMock(return_value={
+        "trivia": "The Smiths trivia",
+        "producer": "The Smiths",
+        "composers": "Morrissey",
+        "key_musicians": "Johnny Marr",
+    })
+    app._fetch_spotlight_trivia_async = MagicMock()
 
     playing_song = Song(
         id="s1",
@@ -66,7 +72,12 @@ async def test_fetch_songs_for_home_view_fallback_when_no_playing_song():
     app = TheIAPlayerApp.__new__(TheIAPlayerApp)
     app.client = MagicMock()
     app.dirs = MagicMock()
-    app.dirs.read_cache = MagicMock(return_value={"trivia": "Sade trivia"})
+    app.dirs.read_cache = MagicMock(return_value={
+        "trivia": "Sade trivia",
+        "producer": "Sade",
+        "composers": "Adu",
+        "key_musicians": "Sade Adu",
+    })
     app._fetch_spotlight_trivia_async = MagicMock()
 
     app.queue = MagicMock()

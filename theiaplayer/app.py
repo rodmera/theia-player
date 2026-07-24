@@ -723,10 +723,11 @@ class TheIAPlayerApp(KitApp):
 
                 self._current_spotlight_text = cached.get("trivia", "")
 
-                # Call Gemini ONLY if trivia is missing and status is not already "failed" or "cached"
+                # Call Gemini if trivia OR credits are missing and status is not "failed"
                 status = cached.get("status", "")
                 has_trivia = bool(cached.get("trivia"))
-                if not has_trivia and status != "failed":
+                has_credits = any(cached.get(k) and cached.get(k) != "N/A" for k in ("producer", "composers", "key_musicians"))
+                if (not has_trivia or not has_credits) and status != "failed":
                     import os
                     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
                         self._fetch_spotlight_trivia_async(album_id, album_name or "N/A", artist_name or "N/A")
@@ -869,7 +870,7 @@ class TheIAPlayerApp(KitApp):
             has_content = bool(cached) or bool(spotlight_text)
             if has_content:
                 options.append(Option(Text(""), disabled=True))
-                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] ver y copiar  ", style=f"reverse bold {palette.peach}"), disabled=True))
+                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] copiar info  ·  [I] signal path  ", style=f"reverse bold {palette.peach}"), disabled=True))
                 options.append(Option(Text(""), disabled=True))
 
                 if cached:
