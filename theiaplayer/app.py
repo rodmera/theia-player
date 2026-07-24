@@ -619,35 +619,43 @@ class TheIAPlayerApp(KitApp):
     async def _fetch_songs_for_view(self, view_id: str) -> list[Song]:
         if view_id == "home":
             try:
-                # 1. Fetch recent albums to pick the Album of the Day
-                album_list = await self.client.get_album_list("recent", size=30)
-                if not album_list:
-                    return []
-                
-                # Consistent daily seed so the Album of the Day stays stable for 24 hours
-                import time, random
-                today_str = time.strftime("%Y-%m-%d")
-                rng = random.Random(today_str)
-                selected_album = rng.choice(album_list)
-                
+                # 1. Determine which album to spotlight (prefer currently playing song's album)
+                current_song = self.queue.current
+                album_id = current_song.album_id if (current_song and current_song.album_id) else None
+                album_name = current_song.album if (current_song and current_song.album) else None
+                artist_name = current_song.artist if (current_song and current_song.artist) else None
+
+                if not album_id:
+                    # Fallback: pick a recent album as Album of the Day
+                    album_list = await self.client.get_album_list("recent", size=30)
+                    if not album_list:
+                        return []
+                    import time, random
+                    today_str = time.strftime("%Y-%m-%d")
+                    rng = random.Random(today_str)
+                    selected_album = rng.choice(album_list)
+                    album_id = selected_album.id
+                    album_name = selected_album.name
+                    artist_name = selected_album.artist
+
                 # 2. Fetch songs of that selected album
-                songs = await self.client.get_album_songs(selected_album.id)
-                
+                songs = await self.client.get_album_songs(album_id)
+
                 # 3. Handle Album Spotlight trivia
-                self._current_spotlight_album_id = selected_album.id
-                cache_key = f"spotlight-{selected_album.id}"
+                self._current_spotlight_album_id = album_id
+                cache_key = f"spotlight-{album_id}"
                 cached = self.dirs.read_cache(cache_key)
-                
+
                 if cached and ("trivia" in cached or "text" in cached):
                     self._current_spotlight_text = cached.get("trivia", cached.get("text", ""))
                 else:
                     import os
                     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
                         self._current_spotlight_text = "Cargando trivia del álbum..."
-                        self._fetch_spotlight_trivia_async(selected_album.id, selected_album.name, selected_album.artist)
+                        self._fetch_spotlight_trivia_async(album_id, album_name, artist_name)
                     else:
                         self._current_spotlight_text = ""
-                    
+
                 return songs
             except Exception:
                 return []
@@ -828,7 +836,9 @@ class TheIAPlayerApp(KitApp):
             "starred": "starred-songs"
         }
         cache_key = cache_map.get(view_id)
-        if not cache_key and view_id.startswith("pl:"):
+        if view_id == "home" and self.queue.current and self.queue.current.album_id:
+            cache_key = f"home-album-{self.queue.current.album_id}"
+        elif not cache_key and view_id.startswith("pl:"):
             cache_key = f"playlist-songs-{view_id.split(':', 1)[1]}"
 
         if cache_key:
@@ -1046,6 +1056,9 @@ class TheIAPlayerApp(KitApp):
         self._scrobble(song.id, False)
         if song.cover_art:
             self._load_art(song.cover_art, f"song-{song.id}")
+        if song.album_id and song.album_id != getattr(self, "_current_spotlight_album_id", None):
+            if self.view == "home":
+                self._load_view("home")
         self._render_queue()
         self._refresh_song_markers()
         self._persist_queue()
