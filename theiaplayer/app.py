@@ -1616,7 +1616,7 @@ class TheIAPlayerApp(KitApp):
             trivia = cached.get("trivia", cached.get("text", ""))
             booklet_text = cached.get("booklet_notes", "")
 
-            # Parse individual collaborators for relational search (stripping instrument/role notes)
+            # Parse individual collaborators categorized by role for relational search
             import re
             INSTRUMENT_WORDS = {
                 "voz", "voice", "vocals", "vocal", "guitarra", "guitar", "bajo", "bass",
@@ -1626,17 +1626,33 @@ class TheIAPlayerApp(KitApp):
                 "productor", "producer", "remaster", "remastering", "n/a", "none", "unknown", "varios"
             }
 
-            for raw_val in (producer, composers, key_musicians):
+            role_map = [
+                ("🎛️ Mezcla", producer),
+                ("✍️ Autor", composers),
+                ("🎷 Músicos", key_musicians),
+            ]
+
+            collab_lines = []
+            num = 1
+
+            for role_label, raw_val in role_map:
                 if raw_val and raw_val != "N/A":
-                    # Step 1: Strip all parenthetical and bracketed content (instruments/roles) FIRST
                     clean_str = re.sub(r"[\(\[\{].*?[\)\]\}]", "", raw_val)
-                    # Step 2: Split on commas, slashes, semicolons, and word connectors ('&', 'and', 'y')
                     parts = re.split(r"[,/;]|(?:\s+&\s+)|(?:\s+and\s+)|(?:\s+y\s+)", clean_str, flags=re.IGNORECASE)
+                    names_for_role = []
                     for p in parts:
                         name = p.strip()
-                        if name and name.lower() not in INSTRUMENT_WORDS and len(name) >= 2:
-                            if name not in collaborators:
+                        if name and name.lower() not in INSTRUMENT_WORDS and len(name) >= 2 and name not in collaborators:
+                            if num <= 9:
+                                names_for_role.append(f"[{num}] {name}")
                                 collaborators.append(name)
+                                num += 1
+                    if names_for_role:
+                        collab_lines.append(f"  {role_label}:  " + "  ".join(names_for_role))
+
+            collab_section = ""
+            if collab_lines:
+                collab_section = "\n\n🔎 BÚSQUEDA DE COLABORADORES EN BIBLIOTECA:\n" + "\n".join(collab_lines)
 
             audio_info = self.player.get_audio_info() if self.player else {}
             codec = (song.suffix if song else audio_info.get("codec", "FLAC")).upper()
@@ -1651,7 +1667,8 @@ class TheIAPlayerApp(KitApp):
                 f"🎛️ Mezcla:    {producer}\n"
                 f"✍️ Autor:     {composers}\n"
                 f"🎷 Músicos:   {key_musicians}\n\n"
-                f"📖 Reseña / Historia:\n{trivia}\n\n"
+                f"📖 Reseña / Historia:\n{trivia}"
+                f"{collab_section}\n\n"
                 f"🔊 Cadena de Audio (Signal Path):\n"
                 f"  Formato: {codec} ({br} kbps) · Driver: {audio_info.get('ao', 'pipewire')}"
             )

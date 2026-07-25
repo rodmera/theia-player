@@ -309,12 +309,16 @@ class SpotlightModal(ModalScreen):
         Binding("c,y,enter", "copy_and_dismiss", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
-        Binding("l,right,t", "toggle_booklet", show=False),
+        Binding("space,w", "toggle_booklet", show=False),
         Binding("1", "search_collaborator(1)", show=False),
         Binding("2", "search_collaborator(2)", show=False),
         Binding("3", "search_collaborator(3)", show=False),
         Binding("4", "search_collaborator(4)", show=False),
         Binding("5", "search_collaborator(5)", show=False),
+        Binding("6", "search_collaborator(6)", show=False),
+        Binding("7", "search_collaborator(7)", show=False),
+        Binding("8", "search_collaborator(8)", show=False),
+        Binding("9", "search_collaborator(9)", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -341,7 +345,7 @@ class SpotlightModal(ModalScreen):
         self._title = title
         self._details_text = details_text
         self._copy_callback = copy_callback
-        self._collaborators = [c.strip() for c in (collaborators or []) if c.strip() and c.strip() != "N/A"][:5]
+        self._collaborators = [c.strip() for c in (collaborators or []) if c.strip() and c.strip() != "N/A"][:9]
         self._booklet_text = booklet_text or ""
         self._showing_booklet = False
 
@@ -355,14 +359,10 @@ class SpotlightModal(ModalScreen):
     def _footer_text(self) -> Text:
         t = Text()
         if self._collaborators:
-            t.append("Buscar: ", style=palette.dim)
-            for i, col in enumerate(self._collaborators, 1):
-                t.append(f"[{i}] ", style=palette.peach)
-                t.append(f"{col}  ", style=palette.text)
-            t.append("· ", style=palette.vfaint)
+            t.append(f"[1-{len(self._collaborators)}] Buscar colaborador  · ", style=palette.peach)
         if self._booklet_text:
             lbl = "Ficha" if self._showing_booklet else "Cuadernillo"
-            t.append(f"[l / →] {lbl}  · ", style=palette.lav)
+            t.append(f"[space/w] {lbl}  · ", style=palette.lav)
         t.append("[c] Copiar  · [Esc] Cerrar", style=palette.dim)
         return t
 
