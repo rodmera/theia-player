@@ -1616,15 +1616,27 @@ class TheIAPlayerApp(KitApp):
             trivia = cached.get("trivia", cached.get("text", ""))
             booklet_text = cached.get("booklet_notes", "")
 
-            # Parse individual collaborators for relational search
+            # Parse individual collaborators for relational search (stripping instrument/role notes)
             import re
+            INSTRUMENT_WORDS = {
+                "voz", "voice", "vocals", "vocal", "guitarra", "guitar", "bajo", "bass",
+                "batería", "drums", "teclados", "keyboards", "piano", "sintetizador", "synths",
+                "synthesizer", "percusión", "percussion", "coros", "backing vocals",
+                "programación", "programming", "mezcla", "mixing", "producción", "production",
+                "productor", "producer", "remaster", "remastering", "n/a", "none", "unknown", "varios"
+            }
+
             for raw_val in (producer, composers, key_musicians):
                 if raw_val and raw_val != "N/A":
-                    parts = re.split(r"[,/;]", raw_val)
-                    for name in parts:
-                        clean_name = re.sub(r"\s*\(.*?\)", "", name).strip()
-                        if clean_name and clean_name.lower() not in ("n/a", "none") and clean_name not in collaborators:
-                            collaborators.append(clean_name)
+                    # Step 1: Strip all parenthetical and bracketed content (instruments/roles) FIRST
+                    clean_str = re.sub(r"[\(\[\{].*?[\)\]\}]", "", raw_val)
+                    # Step 2: Split on commas, slashes, semicolons, and word connectors ('&', 'and', 'y')
+                    parts = re.split(r"[,/;]|(?:\s+&\s+)|(?:\s+and\s+)|(?:\s+y\s+)", clean_str, flags=re.IGNORECASE)
+                    for p in parts:
+                        name = p.strip()
+                        if name and name.lower() not in INSTRUMENT_WORDS and len(name) >= 2:
+                            if name not in collaborators:
+                                collaborators.append(name)
 
             audio_info = self.player.get_audio_info() if self.player else {}
             codec = (song.suffix if song else audio_info.get("codec", "FLAC")).upper()
