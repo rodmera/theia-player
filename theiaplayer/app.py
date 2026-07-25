@@ -2010,15 +2010,18 @@ class TheIAPlayerApp(KitApp):
 
     # ── playlists ─────────────────────────────────────────────────────
     def _highlighted_song(self) -> Song | None:
-        focused = self.focused
-        if focused is not None and focused.id == "tracks-list":
-            ol = self.query_one("#tracks-list", NavList)
-            if ol.highlighted is not None and ol.highlighted < len(self._songs):
-                return self._songs[ol.highlighted]
-        elif focused is not None and focused.id == "queue-list":
-            ol = self.query_one("#queue-list", NavList)
-            if ol.highlighted is not None and ol.highlighted < len(self.queue.songs):
-                return self.queue.songs[ol.highlighted]
+        try:
+            focused = self.focused
+            if focused is not None and focused.id == "tracks-list":
+                ol = self.query_one("#tracks-list", NavList)
+                if ol.highlighted is not None and ol.highlighted < len(self._songs):
+                    return self._songs[ol.highlighted]
+            elif focused is not None and focused.id == "queue-list":
+                ol = self.query_one("#queue-list", NavList)
+                if ol.highlighted is not None and ol.highlighted < len(self.queue.songs):
+                    return self.queue.songs[ol.highlighted]
+        except Exception:
+            pass
         return None
 
     def action_playlist_add(self) -> None:
