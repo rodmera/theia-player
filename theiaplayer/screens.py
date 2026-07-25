@@ -483,8 +483,9 @@ class SearchModal(ModalScreen):
     SearchModal #search-hint { padding: 1 1 0 1; }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, initial_query: str = "") -> None:
         super().__init__()
+        self._initial_query = initial_query
         self._results = SearchResults()
 
     def compose(self) -> ComposeResult:
@@ -520,7 +521,12 @@ class SearchModal(ModalScreen):
     def on_mount(self) -> None:
         pop_in(self.query_one("#search-box"))
         settle_pop_in(self, "#search-box")
-        self.query_one("#search-input", Input).focus()
+        inp = self.query_one("#search-input", Input)
+        inp.focus()
+        if self._initial_query:
+            inp.value = self._initial_query
+            inp.cursor_position = len(self._initial_query)
+            self._search(self._initial_query)
 
     @on(Input.Changed, "#search-input")
     def _changed(self, event: Input.Changed) -> None:

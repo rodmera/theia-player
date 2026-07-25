@@ -1620,9 +1620,10 @@ class TheIAPlayerApp(KitApp):
             import re
             for raw_val in (producer, composers, key_musicians):
                 if raw_val and raw_val != "N/A":
-                    for name in raw_val.split(","):
+                    parts = re.split(r"[,/;]", raw_val)
+                    for name in parts:
                         clean_name = re.sub(r"\s*\(.*?\)", "", name).strip()
-                        if clean_name and clean_name not in collaborators:
+                        if clean_name and clean_name.lower() not in ("n/a", "none") and clean_name not in collaborators:
                             collaborators.append(clean_name)
 
             audio_info = self.player.get_audio_info() if self.player else {}
