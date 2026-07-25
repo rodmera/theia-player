@@ -53,6 +53,7 @@ DEFAULT_KEYBINDS: dict = {
     "focus_filter":         "ctrl+f",
     "moods":                "ctrl+w",
     "album_versions":       "ctrl+v",
+    "go_back":              "backspace,escape,alt+left",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -361,6 +362,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["focus_filter"],         "show_focus_filter",    "focus filter",         show=True),
         Binding(kb["moods"],                "show_moods",           "ambientes",            show=True),
         Binding(kb["album_versions"],       "show_album_versions",  "album versions",       show=True),
+        Binding(kb["go_back"],              "go_back",              "volver",               show=True),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),
     ]

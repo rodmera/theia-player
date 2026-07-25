@@ -155,6 +155,7 @@ class TheIAPlayerApp(KitApp):
         Binding("ctrl+f", "show_focus_filter", "focus filter", show=True),
         Binding("ctrl+w", "show_moods", "ambientes", show=True),
         Binding("ctrl+v", "show_album_versions", "versions", show=True),
+        Binding("backspace,escape,alt+left", "go_back", "volver", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -206,6 +207,7 @@ class TheIAPlayerApp(KitApp):
         self._notify_on: bool = bool(_pcfg.get("desktop_notifications", True))
         self._selection: set[str] = set()  # selected song IDs
         self.view: str = "all-songs"  # sidebar view id (or "pl:<id>", or "artist:<id>")
+        self._view_history: list[str] = []  # view navigation history stack for backspace/escape/back
         self._songs: list[Song] = []  # what the tracks pane shows
         self._playlists: list[Playlist] = []
         # playback bookkeeping
@@ -631,6 +633,14 @@ class TheIAPlayerApp(KitApp):
         self.dirs.save_state({"pins": pins})
         self._render_sidebar()
 
+    def _record_view_history(self, current_view: str) -> None:
+        if not hasattr(self, "_view_history"):
+            self._view_history = []
+        if current_view and (not self._view_history or self._view_history[-1] != current_view):
+            self._view_history.append(current_view)
+            if len(self._view_history) > 25:
+                self._view_history.pop(0)
+
     @on(OptionList.OptionHighlighted, "#sidebar-list")
     def _sidebar_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         if getattr(self, "_loading_playlists", False):
@@ -639,15 +649,13 @@ class TheIAPlayerApp(KitApp):
         if not oid or oid == "pl-new":
             return
         if oid.startswith("folder:"):
-            # Don't try to load songs for a folder category header
             return
             
         real_id = oid.split(":", 1)[1] if oid.startswith("pin:") else oid
         
-        # Si la vista seleccionada ya está activa en pantalla, NO volver a cargarla.
-        # Esto previene de forma absoluta recargas accidentales en segundo plano y desincronizaciones de la cola.
         if real_id == self.view and self._songs:
             return
+        self._record_view_history(self.view)
         self.view = real_id
         self.dirs.save_state({"view": real_id})
         self._load_view(real_id)
@@ -974,6 +982,7 @@ class TheIAPlayerApp(KitApp):
     @work(exclusive=True, group="songs")
     async def _load_artist_songs(self, artist: Artist) -> None:
         """Ad-hoc view from search: every song by an artist, flattened."""
+        self._record_view_history(self.view)
         title = f"artist · {artist.name}"
         self.view = f"artist:{artist.id}"
         self._highlight_view(None)
@@ -1000,6 +1009,15 @@ class TheIAPlayerApp(KitApp):
         for r in results:
             if isinstance(r, list):
                 songs.extend(r)
+
+        # Fallback: if get_artist_albums yielded 0 songs, search songs directly by artist name
+        if not songs:
+            try:
+                s_res = await self.client.search(artist.name)
+                songs = [s for s in s_res.songs if artist.name.lower() in s.artist.lower() or s.artist.lower() in artist.name.lower()]
+            except Exception:
+                pass
+
         self._current_artist_albums = albums
         self._current_artist_songs = songs
         self.dirs.write_cache(cache_key, {
@@ -1348,6 +1366,30 @@ class TheIAPlayerApp(KitApp):
                 self._show_songs(self._songs, self._tracks_title(self.view))
 
         self.push_screen(FocusModal(), _on_focus_done)
+
+    def action_go_back(self) -> None:
+        """Navigate back to the previous view in history."""
+        if not hasattr(self, "_view_history") or not self._view_history:
+            self.notify("No hay vistas anteriores en el historial", timeout=2)
+            return
+
+        prev_view = self._view_history.pop()
+        self.view = prev_view
+        self.dirs.save_state({"view": prev_view})
+
+        if prev_view.startswith("artist:"):
+            artist_id = prev_view.split(":", 1)[1]
+            artist_name = getattr(self, "_current_artist_name", "Artista")
+            self._load_artist_songs(Artist(id=artist_id, name=artist_name))
+        elif prev_view.startswith("album:"):
+            album_id = prev_view.split(":", 1)[1]
+            self._play_view_from_top(f"album:{album_id}")
+        else:
+            self._load_view(prev_view)
+            self._highlight_view(prev_view)
+
+        title = self._tracks_title(prev_view)
+        self.notify(f"← Volviendo a: {title}", timeout=2)
 
     def action_show_moods(self) -> None:
         from theiaplayer.screens import MoodsModal

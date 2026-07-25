@@ -107,6 +107,7 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `ctrl+f` | Modo Focus (filtros avanzados: Hi-Res, décadas, joyas no escuchadas) |
 | `ctrl+w` | Ambientes & Modos (acceso directo a Lectura, Música Suave, Sesión Nocturna) |
 | `ctrl+v` | Ediciones & Versiones del Álbum (Original vs Remaster / Deluxe) |
+| `backspace` / `alt+left` | Volver a la vista anterior (historial de navegación) |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |
