@@ -1631,7 +1631,6 @@ class TheIAPlayerApp(KitApp):
             br = song.bit_rate if song else audio_info.get("bitrate", 0)
 
             formatted = (
-                f"📌 ALBUM SPOTLIGHT & CRÉDITOS ROON\n\n"
                 f"💿 Álbum:     {album}\n"
                 f"👤 Artista:   {artist}\n"
                 f"📅 Año:       {year}\n"
@@ -1646,7 +1645,6 @@ class TheIAPlayerApp(KitApp):
             )
         elif song:
             formatted = (
-                f"📌 DETALLES DEL TRACK & ÁLBUM\n\n"
                 f"🎵 Tema:      {song.title}\n"
                 f"👤 Artista:   {song.artist}\n"
                 f"💿 Álbum:     {song.album} ({song.year or 'N/A'})\n"
