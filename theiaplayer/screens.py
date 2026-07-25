@@ -309,7 +309,7 @@ class SpotlightModal(ModalScreen):
         Binding("c,y,enter", "copy_and_dismiss", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
-        Binding("tab,b,l,t", "toggle_booklet", show=False),
+        Binding("l,right,t", "toggle_booklet", show=False),
         Binding("1", "search_collaborator(1)", show=False),
         Binding("2", "search_collaborator(2)", show=False),
         Binding("3", "search_collaborator(3)", show=False),
@@ -362,13 +362,22 @@ class SpotlightModal(ModalScreen):
             t.append("· ", style=palette.vfaint)
         if self._booklet_text:
             lbl = "Ficha" if self._showing_booklet else "Cuadernillo"
-            t.append(f"[b/Tab] {lbl}  · ", style=palette.lav)
+            t.append(f"[l / →] {lbl}  · ", style=palette.lav)
         t.append("[c] Copiar  · [Esc] Cerrar", style=palette.dim)
         return t
 
     def on_key(self, event) -> None:
-        if event.key in ("tab", "b", "l", "t") and self._booklet_text:
-            self.action_toggle_booklet()
+        key = event.key.lower()
+        if key in ("l", "right", "t", "tab"):
+            if self._booklet_text:
+                self.action_toggle_booklet()
+            else:
+                self.app.notify("No hay cuadernillo extendido disponible para este álbum", timeout=2)
+            event.stop()
+            event.prevent_default()
+        elif key in ("b", "n", "h", "left"):
+            if self._showing_booklet and key in ("h", "left"):
+                self.action_toggle_booklet()
             event.stop()
             event.prevent_default()
 
