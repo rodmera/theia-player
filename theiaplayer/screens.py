@@ -309,7 +309,7 @@ class SpotlightModal(ModalScreen):
         Binding("c,y,enter", "copy_and_dismiss", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
-        Binding("tab,l", "toggle_booklet", show=False),
+        Binding("tab,b,l,t", "toggle_booklet", show=False),
         Binding("1", "search_collaborator(1)", show=False),
         Binding("2", "search_collaborator(2)", show=False),
         Binding("3", "search_collaborator(3)", show=False),
@@ -362,9 +362,15 @@ class SpotlightModal(ModalScreen):
             t.append("· ", style=palette.vfaint)
         if self._booklet_text:
             lbl = "Ficha" if self._showing_booklet else "Cuadernillo"
-            t.append(f"[Tab] {lbl}  · ", style=palette.lav)
+            t.append(f"[b/Tab] {lbl}  · ", style=palette.lav)
         t.append("[c] Copiar  · [Esc] Cerrar", style=palette.dim)
         return t
+
+    def on_key(self, event) -> None:
+        if event.key in ("tab", "b", "l", "t") and self._booklet_text:
+            self.action_toggle_booklet()
+            event.stop()
+            event.prevent_default()
 
     def on_mount(self) -> None:
         pop_in(self.query_one("#spotlight-box"))
@@ -415,8 +421,6 @@ class SpotlightModal(ModalScreen):
     def action_scroll_up(self) -> None:
         scroll = self.query_one("#spotlight-scroll", VerticalScroll)
         scroll.scroll_up()
-
-    def action_scroll_up(self) -> None:
         scroll = self.query_one("#spotlight-scroll", VerticalScroll)
         scroll.scroll_up()
 
