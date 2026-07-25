@@ -33,7 +33,7 @@ DEFAULT_KEYBINDS: dict = {
     "queue_move_down":      "ctrl+down",
     "star":                 "f",
     "share":                "S",
-    "copy_text":            "c",
+    "copy_text":            "C",
     "lyrics":               "L",
     "equalizer":            "ctrl+e,y",
     "go_to_album":          "e",
@@ -49,10 +49,10 @@ DEFAULT_KEYBINDS: dict = {
     "help":                 "question_mark",
     "quit":                 "q",
     "pin_toggle":           "i",
-    "signal_path":          "I",
-    "focus_filter":         "F",
-    "moods":                "M",
-    "album_versions":       "V",
+    "signal_path":          "ctrl+s",
+    "focus_filter":         "ctrl+f",
+    "moods":                "ctrl+w",
+    "album_versions":       "ctrl+v",
 }
 
 DEFAULT_FILTERS: dict = {
@@ -343,7 +343,7 @@ def build_bindings(keybinds: dict):
         Binding(kb["queue_move_down"],      "queue_move(1)",        show=False),
         Binding(kb["star"],                 "star",                 show=False),
         Binding(kb["share"],                "share",                show=False),
-        Binding(kb["copy_text"],            "copy_text",            "copy info",            show=True),
+        Binding(kb["copy_text"],            "copy_text",            "roon credits",         show=True),
         Binding(kb["lyrics"],               "show_lyrics",          show=False),
         Binding(kb["equalizer"],            "show_equalizer",       "eq",                   show=True),
         Binding(kb["go_to_album"],          "go_to_album",          show=False),

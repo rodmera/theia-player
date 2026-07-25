@@ -147,14 +147,14 @@ class TheIAPlayerApp(KitApp):
         Binding("N", "toggle_notifications", "silent", show=True),
         Binding("P", "toggle_private_mode", "private", show=True),
         Binding("L", "show_lyrics", "lyrics", show=True),
-        Binding("c", "copy_text", "album credits", show=True),
+        Binding("C", "copy_text", "roon credits", show=True),
         Binding("ctrl+e,y", "show_equalizer", "eq", show=True),
         Binding("ctrl+g", "switch_server", "switch server", show=True),
         Binding("ctrl+d", "switch_audio_device", "audio device", show=True),
-        Binding("I", "show_signal_path", "signal path", show=True),
-        Binding("F", "show_focus_filter", "focus filter", show=True),
-        Binding("M", "show_moods", "ambientes", show=True),
-        Binding("V", "show_album_versions", "versions", show=True),
+        Binding("ctrl+s", "show_signal_path", "signal path", show=True),
+        Binding("ctrl+f", "show_focus_filter", "focus filter", show=True),
+        Binding("ctrl+w", "show_moods", "ambientes", show=True),
+        Binding("ctrl+v", "show_album_versions", "versions", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
         Binding("alt+o", "filter_all", "all releases", show=False),
@@ -872,7 +872,7 @@ class TheIAPlayerApp(KitApp):
             has_content = bool(cached) or bool(spotlight_text)
             if has_content:
                 options.append(Option(Text(""), disabled=True))
-                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [c] copiar info  ·  [I] signal path", style=f"bold {palette.lav}"), disabled=True))
+                options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [C] roon credits  ·  [ctrl+s] signal path", style=f"bold {palette.lav}"), disabled=True))
                 options.append(Option(Text(""), disabled=True))
 
                 if cached:

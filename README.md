@@ -102,11 +102,11 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `a` / `A` | queue / play next (works in search too) |
 | `p` | add track to playlists (multi-select) |
 | `i` | pin view / highlighted item to favorites (Pins) |
-| `c` | Créditos Roon, Reseña y Navegación por Colaboradores |
-| `I` | Inspeccionar cadena de audio (Signal Path / Bit-Perfect / DAC info) |
-| `F` | Modo Focus (filtros avanzados: Hi-Res, décadas, joyas no escuchadas) |
-| `M` | Ambientes & Modos (acceso directo a Lectura, Música Suave, Sesión Nocturna) |
-| `V` | Ediciones & Versiones del Álbum (Original vs Remaster / Deluxe) |
+| `C` | Créditos Roon, Reseña y Navegación por Colaboradores |
+| `ctrl+s` | Inspeccionar cadena de audio (Signal Path / Bit-Perfect / DAC info) |
+| `ctrl+f` | Modo Focus (filtros avanzados: Hi-Res, décadas, joyas no escuchadas) |
+| `ctrl+w` | Ambientes & Modos (acceso directo a Lectura, Música Suave, Sesión Nocturna) |
+| `ctrl+v` | Ediciones & Versiones del Álbum (Original vs Remaster / Deluxe) |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |
