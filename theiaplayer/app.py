@@ -280,6 +280,7 @@ class TheIAPlayerApp(KitApp):
         )
         default_vol = pcfg["default_volume"]
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
+        saved_vol = round(saved_vol / 5) * 5
         self.player.set_volume(saved_vol)
         
         # Apply equalizer on startup if enabled
@@ -1241,14 +1242,27 @@ class TheIAPlayerApp(KitApp):
         self.player.seek_to(fraction)
 
     def action_volume(self, delta: int) -> None:
-        volume = self.player.set_volume(self.player.volume + delta)
+        cur_vol = self.player.volume
+        if delta > 0:
+            target_vol = ((cur_vol // 5) + 1) * 5
+        elif delta < 0:
+            target_vol = ((cur_vol - 1) // 5) * 5
+        else:
+            target_vol = cur_vol
+
+        volume = self.player.set_volume(target_vol)
         now = self.query_one("#now", NowPlaying)
         now.volume = volume
         now.flash_volume()
         self.dirs.save_state({"volume": volume})
 
     def set_volume_fraction(self, fraction: float) -> None:
-        self.action_volume(round(fraction * 100) - self.player.volume)
+        target_vol = round((fraction * 100) / 5) * 5
+        volume = self.player.set_volume(target_vol)
+        now = self.query_one("#now", NowPlaying)
+        now.volume = volume
+        now.flash_volume()
+        self.dirs.save_state({"volume": volume})
 
     def action_mute(self) -> None:
         now = self.query_one("#now", NowPlaying)
