@@ -1433,7 +1433,7 @@ class TheIAPlayerApp(KitApp):
         if self.client is None:
             return
         remaining = len(self.queue.songs) - (self.queue.index + 1)
-        if remaining <= 1:
+        if remaining <= 3:
             if getattr(self, "_autoplay_loading", False):
                 return
             self._autoplay_loading = True
@@ -1443,30 +1443,30 @@ class TheIAPlayerApp(KitApp):
     async def _fetch_autoplay_songs(self) -> None:
         try:
             seed = self.queue.current
+            songs: list[Song] = []
             if seed is not None:
-                songs = await self.client.get_similar_songs(seed.id, size=15)
-            else:
-                songs = await self.client.get_random_songs(size=15)
+                songs = await self.client.get_similar_songs(seed.id, size=25)
+            
             songs = self._apply_filters(songs)
-            if songs:
-                # If queue became empty during fetch, don't auto-enqueue old results
-                if not self.queue.songs:
-                    return
+            existing_ids = {s.id for s in self.queue.songs}
+            songs = [s for s in songs if s.id not in existing_ids]
 
-                # Exclude songs already in the queue to prevent duplicates
-                existing_ids = {s.id for s in self.queue.songs}
-                songs = [s for s in songs if s.id not in existing_ids]
+            # Fallback to random songs if similar songs yielded 0 new tracks
+            if not songs:
+                rand_songs = await self.client.get_random_songs(size=50)
+                rand_songs = self._apply_filters(rand_songs)
+                songs = [s for s in rand_songs if s.id not in existing_ids][:15]
+                # Secondary fallback if library is small: allow re-playing random songs if queue ran out
+                if not songs and rand_songs:
+                    songs = rand_songs[:15]
 
-                if songs:
-                    # Get the artist of the last track to avoid playing the same artist consecutively
-                    last_artist = self.queue.songs[-1].artist if self.queue.songs else (seed.artist if seed else None)
-                    songs = self._reorder_for_artist_diversity(songs, last_artist)
-
-                if songs:
-                    self.queue.add(songs)
-                    self._render_queue()
-                    self._persist_queue()
-                    self.notify(f"Auto DJ: {len(songs)} similar songs enqueued", timeout=3)
+            if songs and self.queue.songs:
+                last_artist = self.queue.songs[-1].artist if self.queue.songs else (seed.artist if seed else None)
+                songs = self._reorder_for_artist_diversity(songs, last_artist)
+                self.queue.add(songs)
+                self._render_queue()
+                self._persist_queue()
+                self.notify(f"Auto DJ: {len(songs)} similar songs enqueued", timeout=3)
         except Exception:
             pass
         finally:
@@ -1946,6 +1946,7 @@ class TheIAPlayerApp(KitApp):
             if position >= min(duration / 2, 240):
                 self._scrobbled = True
                 self._scrobble(song.id, True)
+        self._check_autoplay()
         # crash-safe resume point, at most every 10s
         if position - self._last_persist >= 10 or position < self._last_persist:
             self._last_persist = position
