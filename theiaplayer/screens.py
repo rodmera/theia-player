@@ -201,11 +201,13 @@ class InputModal(ModalScreen):
         self.dismiss(None)
 
 class LyricsModal(ModalScreen):
-    """Scrollable lyrics overlay. Dismiss with Escape or q."""
+    """Scrollable lyrics overlay. Dismiss with Escape, q, L, l, or Enter."""
 
     BINDINGS = [
         Binding("escape", "cancel", show=False),
         Binding("q", "cancel", show=False),
+        Binding("L,l", "cancel", show=False),
+        Binding("enter", "cancel", show=False),
         Binding("j,down", "scroll_down", show=False),
         Binding("k,up", "scroll_up", show=False),
         Binding("space", "app_play_pause", show=False),
@@ -226,6 +228,7 @@ class LyricsModal(ModalScreen):
     LyricsModal #lyrics-title { margin-bottom: 1; }
     LyricsModal VerticalScroll { height: 1fr; }
     LyricsModal VerticalScroll Static { background: $kit-modal-bg; }
+    LyricsModal #lyrics-footer { height: 1; color: $text-muted; text-align: center; margin-top: 1; }
     LyricsModal .lyrics-line {
         height: auto;
         content-align: center middle;
@@ -262,10 +265,61 @@ class LyricsModal(ModalScreen):
                     widget = Static(text or " ", classes="lyrics-line")
                     self._line_widgets.append(widget)
                     yield widget
+            yield Static(Text("  [L / Esc / q / Enter] Cerrar letras  ·  [j / k] Desplazar", style=palette.dim), id="lyrics-footer")
 
     def on_mount(self) -> None:
         pop_in(self.query_one("#lyrics-box"))
         settle_pop_in(self, "#lyrics-box")
+
+    def on_key(self, event) -> None:
+        key = event.key.lower()
+        if key in ("escape", "q", "l", "enter"):
+            self.action_cancel()
+            event.stop()
+            event.prevent_default()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_app_play_pause(self) -> None:
+        if hasattr(self.app, "action_play_pause"):
+            self.app.action_play_pause()
+
+    def action_app_next_track(self) -> None:
+        if hasattr(self.app, "action_next_track"):
+            self.app.action_next_track()
+
+    def action_app_prev_track(self) -> None:
+        if hasattr(self.app, "action_prev_track"):
+            self.app.action_prev_track()
+
+    def action_app_seek_back(self) -> None:
+        if hasattr(self.app, "action_seek"):
+            self.app.action_seek(-5)
+
+    def action_app_seek_fwd(self) -> None:
+        if hasattr(self.app, "action_seek"):
+            self.app.action_seek(5)
+
+    def action_app_seek_back_big(self) -> None:
+        if hasattr(self.app, "action_seek"):
+            self.app.action_seek(-30)
+
+    def action_app_seek_fwd_big(self) -> None:
+        if hasattr(self.app, "action_seek"):
+            self.app.action_seek(30)
+
+    def action_scroll_down(self) -> None:
+        try:
+            self.query_one("#lyrics-scroll", VerticalScroll).scroll_down()
+        except Exception:
+            pass
+
+    def action_scroll_up(self) -> None:
+        try:
+            self.query_one("#lyrics-scroll", VerticalScroll).scroll_up()
+        except Exception:
+            pass
 
     def update_time(self, time_sec: float) -> None:
         """Update synchronized lyrics scroll position based on player time (seconds)."""
