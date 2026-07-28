@@ -63,6 +63,7 @@ DEFAULT_FILTERS: dict = {
     "min_duration":     0,    # 0 = disabled; exclude songs shorter than N seconds
     "max_duration":     0,    # 0 = disabled; exclude songs longer than N seconds
     "min_play_count":   0,    # 0 = disabled; exclude songs with fewer plays
+    "prefer_remasters": True, # when duplicates exist, keep only the Remaster version
 }
 
 DEFAULT_COLUMNS: dict = {
@@ -283,6 +284,7 @@ def filter_songs(songs: list, filters: dict) -> list:
     lossless_only = bool(filters.get("lossless_only", False))
     max_plays = filters.get("max_play_count")
     include_genres = [g.lower() for g in filters.get("include_genres", [])]
+    prefer_remasters = bool(filters.get("prefer_remasters", True))
 
     def keep(s) -> bool:
         if exclude_titles and any(t in s.title.lower() for t in exclude_titles):
@@ -314,7 +316,43 @@ def filter_songs(songs: list, filters: dict) -> list:
             return False
         return True
 
-    return [s for s in songs if keep(s)]
+    filtered = [s for s in songs if keep(s)]
+
+    if prefer_remasters:
+        import re
+        remaster_keys = set()
+        for s in filtered:
+            if re.search(r"remaster", s.title, re.IGNORECASE):
+                artist_key = s.artist.lower().strip()
+                album_key = s.album.lower().strip()
+                base_title = re.sub(r"[\(\[\{].*?remaster.*?[\)\]\}]", "", s.title, flags=re.IGNORECASE).strip().lower()
+                remaster_keys.add((artist_key, album_key, base_title))
+
+        if remaster_keys:
+            seen = {}
+            result = []
+            for s in filtered:
+                artist_key = s.artist.lower().strip()
+                album_key = s.album.lower().strip()
+                base_title = re.sub(r"[\(\[\{].*?remaster.*?[\)\]\}]", "", s.title, flags=re.IGNORECASE).strip().lower()
+                key = (artist_key, album_key, base_title)
+
+                if key in remaster_keys:
+                    is_remaster = bool(re.search(r"remaster", s.title, re.IGNORECASE))
+                    if key not in seen:
+                        seen[key] = (s, is_remaster)
+                        result.append(s)
+                    else:
+                        prev_song, prev_is_remaster = seen[key]
+                        if is_remaster and not prev_is_remaster:
+                            idx = result.index(prev_song)
+                            result[idx] = s
+                            seen[key] = (s, is_remaster)
+                else:
+                    result.append(s)
+            return result
+
+    return filtered
 
 # ── binding builder ───────────────────────────────────────────────────────────
 

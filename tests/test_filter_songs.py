@@ -174,3 +174,20 @@ def test_autodj_filter_path_is_the_pure_filter():
     #    must yield the same result.
     again = filter_songs(filtered, autodj_filters)
     assert again == filtered
+
+
+def test_prefer_remasters_deduplication():
+    songs = [
+        _song("1", title="Slave To Love (Remastered 1999)", artist="Bryan Ferry"),
+        _song("2", title="Sensation (Remastered 1999)", artist="Bryan Ferry"),
+        _song("3", title="Slave To Love", artist="Bryan Ferry"),
+        _song("4", title="Sensation", artist="Bryan Ferry"),
+    ]
+
+    filtered = filter_songs(songs, {"prefer_remasters": True})
+    assert len(filtered) == 2
+    titles = [s.title for s in filtered]
+    assert "Slave To Love (Remastered 1999)" in titles
+    assert "Sensation (Remastered 1999)" in titles
+    assert "Slave To Love" not in titles
+    assert "Sensation" not in titles
