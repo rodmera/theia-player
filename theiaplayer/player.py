@@ -220,18 +220,8 @@ class Player:
 
     def set_audio_device(self, name: str) -> None:
         try:
-            # Smart-normalize the device prefix to match the active Audio Output (ao) driver.
-            # e.g., if we are running on 'pulse' but the device name is 'pipewire/bluez_output...',
-            # we translate it to 'pulse/bluez_output...' so mpv can resolve it.
-            ao = self._m.ao
-            if isinstance(ao, list) and ao:
-                ao = ao[0].get("name")
-            if not isinstance(ao, str):
-                ao = "pulse"
-            if "/" in name:
-                current_prefix, device_id = name.split("/", 1)
-                if current_prefix != ao and ao in ("pulse", "pipewire", "alsa"):
-                    name = f"{ao}/{device_id}"
+            if not name:
+                name = "auto"
             self._m.audio_device = name
         except Exception:
             pass

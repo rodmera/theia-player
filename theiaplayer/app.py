@@ -1170,6 +1170,11 @@ class TheIAPlayerApp(KitApp):
         else:
             self.player.play(self.client.stream_url(song.id), start=resume_at)
             self._cache_audio_async(song)
+
+        # Re-assert target audio device from state so stream stays locked to user's selected device
+        saved_device = self.dirs.load_state().get("audio_device")
+        if saved_device and self.player is not None:
+            self.player.set_audio_device(saved_device)
             
         now.set_song(song)
         now.set_progress(resume_at, song.duration)
