@@ -222,6 +222,19 @@ class Player:
         try:
             if not name:
                 name = "auto"
+            ao = self._m.ao
+            if isinstance(ao, list) and ao:
+                ao = ao[0].get("name", "")
+            if not isinstance(ao, str):
+                ao = "pipewire"
+
+            if name != "auto" and "/" in name:
+                prefix, dev_id = name.split("/", 1)
+                if ao == "pipewire" and prefix == "pulse":
+                    name = dev_id
+                elif ao in ("pulse", "pulseaudio") and prefix != "pulse":
+                    name = f"pulse/{dev_id}"
+
             self._m.audio_device = name
         except Exception:
             pass

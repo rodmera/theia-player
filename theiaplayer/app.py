@@ -1171,6 +1171,10 @@ class TheIAPlayerApp(KitApp):
             self.player.play(self.client.stream_url(song.id), start=resume_at)
             self._cache_audio_async(song)
 
+        # Track playback start timestamp for rapid failure detection
+        import time
+        self._last_play_time = time.time()
+
         # Re-assert target audio device from state so stream stays locked to user's selected device
         saved_device = self.dirs.load_state().get("audio_device")
         if saved_device and self.player is not None:
@@ -1974,20 +1978,34 @@ class TheIAPlayerApp(KitApp):
     def _on_track_end(self, failed: bool) -> None:
         if not self.is_running:
             return
-        if failed:
+            
+        import time
+        now_ts = time.time()
+        last_play = getattr(self, "_last_play_time", 0.0)
+        is_rapid_end = (now_ts - last_play) < 1.5
+
+        if failed or is_rapid_end:
             self._end_failures += 1
             song = self.queue.current
-            self.notify(
-                f"stream failed: {song.title if song else '?'}",
-                severity="warning",
-                timeout=4,
-            )
             if self._end_failures >= 3:
-                self.notify("three failures in a row — stopping", severity="error")
+                self.notify("⚠️ Error en salida de audio - restableciendo a dispositivo por defecto", severity="error", timeout=5)
                 self.player.stop()
+                if self.player:
+                    self.player.set_audio_device("auto")
+                self.dirs.save_state({"audio_device": "auto"})
                 self.query_one("#now", NowPlaying).set_playing(False)
+                self._end_failures = 0
                 return
-        song = self.queue.advance(natural=not failed)
+            else:
+                self.notify(
+                    f"stream failed: {song.title if song else '?'}",
+                    severity="warning",
+                    timeout=3,
+                )
+        else:
+            self._end_failures = 0
+
+        song = self.queue.advance(natural=not failed and not is_rapid_end)
         if song is not None:
             self._play_current()
         else:
