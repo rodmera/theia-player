@@ -55,6 +55,12 @@ class SongTooltip(Container):
     a single-underscore ``_content`` attribute). The renderable is
     always a plain ``Text`` object that ``visualize`` accepts in every
     textual version.
+
+    Self-healing: ``__init__`` scrubs any pre-existing ``_content``
+    attribute that the parent class chain may have set during a
+    pathological compose path. This is belt-and-suspenders against
+    any textual version where Container inherits a `_content` slot
+    that ends up holding the widget reference itself.
     """
 
     DEFAULT_CSS = """
@@ -75,6 +81,17 @@ class SongTooltip(Container):
         super().__init__(**kwargs)
         self.border_title = "track info"
         self._renderable: Text = Text("")
+        # Self-heal: some textual versions propagate a `_content` slot
+        # through Widget/Container. If the parent's `__init__` set
+        # `self._content` to anything other than a primitive renderable,
+        # nuke it so the layout pipeline can't read garbage.
+        if hasattr(self, "_content") and not isinstance(
+            getattr(self, "_content", None), (str, Text, type(None))
+        ):
+            try:
+                self._content = ""
+            except (AttributeError, TypeError):
+                pass
 
     def render(self) -> Text:
         """Return the current tooltip text as a Rich Text renderable.

@@ -317,8 +317,8 @@ async def test_song_tooltip_layout_does_not_crash_on_hover(hover_app):
 
 def test_song_tooltip_does_not_shadow_static_content_attribute():
     """The production crash was caused by SongTooltip (when it subclassed
-    Static) shadowing the parent class's ``_content`` slot in textual
-    versions where Static uses ``self._content`` (single underscore)
+    Static) shadowing the parent ``Static`` class's ``_content`` slot in
+    textual versions where Static uses ``self._content`` (single underscore)
     instead of name-mangled ``__content``. The v2.2.2 fix removes
     Static entirely — SongTooltip is a Container that returns a Text
     directly from ``render()``.
@@ -352,6 +352,43 @@ def test_song_tooltip_does_not_shadow_static_content_attribute():
     # The renderable is the safe Text storage we added in v2.2.2.
     assert hasattr(tooltip, "_renderable")
     assert isinstance(tooltip._renderable, Text)
+
+
+def test_song_tooltip_self_heals_content_attribute():
+    """Some textual versions propagate a ``_content`` slot through
+    Widget/Container. If the parent class's ``__init__`` ever sets
+    ``self._content`` to a widget reference (instead of leaving it
+    empty), the layout pipeline crashes with VisualError.
+
+    The v2.2.3 fix scrubs ``_content`` in ``__init__`` if it ends up
+    holding anything other than a primitive renderable. Simulate the
+    pathological case by force-injecting a widget into ``_content``
+    BEFORE the tooltip's ``__init__`` runs (mimicking a parent class
+    that sets the slot during ``__init__``).
+    """
+    from textual.containers import Container as _Container
+
+    # Inject _content=widget before the tooltip's __init__ runs.
+    # We patch Container.__init__ to do this for one instance.
+    sentinel = SongTooltip()
+    original_init = _Container.__init__
+
+    def polluted_init(self, *args, **kwargs):
+        self._content = sentinel  # the dangerous state
+        original_init(self, *args, **kwargs)
+
+    _Container.__init__ = polluted_init
+    try:
+        tooltip = SongTooltip()
+    finally:
+        _Container.__init__ = original_init
+
+    # After our __init__ runs, _content must NOT be a widget anymore.
+    assert not isinstance(getattr(tooltip, "_content", None), SongTooltip), (
+        f"SongTooltip.__init__ did not scrub self._content; "
+        f"still pointing at {type(tooltip._content).__name__}. "
+        "The layout pipeline will VisualError on this attribute."
+    )
 
 
 @pytest.mark.asyncio
