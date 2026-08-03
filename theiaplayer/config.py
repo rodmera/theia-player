@@ -140,7 +140,11 @@ def _normalize_keybinds(overrides: dict) -> dict:
         if isinstance(subtable, dict):
             for go_action, keys in subtable.items():
                 if go_action in MAPPING and isinstance(keys, list):
-                    flat_keybinds[MAPPING[go_action]] = ",".join(keys)
+                    # An empty list (e.g. `play_pause = []`) is a user
+                    # "unset" signal — keep the default rather than
+                    # silently creating a binding with an empty key.
+                    if keys:
+                        flat_keybinds[MAPPING[go_action]] = ",".join(keys)
     overrides["keybinds"] = flat_keybinds
     return overrides
 

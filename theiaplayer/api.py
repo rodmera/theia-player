@@ -33,8 +33,18 @@ def make_token(password: str) -> tuple[str, str]:
     return token, salt
 
 def normalize_server(url: str) -> str:
-    url = url.strip().rstrip("/")
-    if url and "://" not in url:
+    """Strip whitespace + trailing slash, prepend https:// if no scheme.
+
+    Trims trailing slashes AFTER the scheme prefix so `http://` doesn't
+    become `http:` (which would then be double-prefixed into the
+    malformed `https://http:`)."""
+    url = url.strip()
+    if "://" in url:
+        # Strip trailing slash only after the scheme marker
+        scheme_end = url.index("://") + 3
+        return url[:scheme_end] + url[scheme_end:].rstrip("/")
+    url = url.rstrip("/")
+    if url:
         url = "https://" + url
     return url
 

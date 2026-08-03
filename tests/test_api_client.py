@@ -65,6 +65,22 @@ def test_normalize_server_preserves_explicit_scheme():
     assert normalize_server("http://internal:8080") == "http://internal:8080"
 
 
+def test_normalize_server_handles_empty_and_whitespace():
+    """Empty input is passed through as-is (no request will be made)."""
+    assert normalize_server("") == ""
+    assert normalize_server("   ") == ""
+
+
+def test_normalize_server_no_separator_does_not_split_scheme():
+    """`://` already in the URL — don't double-prefix. The historical
+    bug was that ``http://`` stripped to ``http:`` (no `://`), then the
+    normalizer saw no `://` and prepended `https://`, producing the
+    malformed ``https://http:``. Today's behaviour must round-trip."""
+    # Both forms must recognise the scheme is already present
+    assert normalize_server("http://") == "http://"  # or any non-broken result
+    assert normalize_server("https://") == "https://"
+
+
 # ── MockTransport harness ──────────────────────────────────────────────
 
 

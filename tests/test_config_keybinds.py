@@ -144,6 +144,33 @@ def test_normalize_keybinds_invalid_keys_value_is_ignored():
     assert out["keybinds"]["next_track"] == DEFAULT_KEYBINDS["next_track"]
 
 
+def test_normalize_keybinds_empty_list_should_keep_default():
+    """Regression: an empty list value currently produces an empty
+    string binding key, which silently creates a useless binding.
+    The expected behavior is to fall back to the default — the user
+    can remove the action by other means (e.g. unset in the flat
+    namespace). Until this is fixed, the test pins the current
+    behavior so the bug is visible."""
+    overrides = {
+        "keybinds": {
+            "misc": {
+                "play_pause": [],  # explicit empty
+            }
+        }
+    }
+    out = _normalize_keybinds(overrides)
+    # Today: empty string "" (bug → useless binding)
+    # Expected: DEFAULT_KEYBINDS["play_pause"] ("space")
+    if out["keybinds"]["play_pause"] == "":
+        # Pin the bug so a fix is required to change this assertion.
+        pytest.fail(
+            "BUG: empty list override creates a binding with empty key. "
+            "Should keep the default fallback. Will silently disable the "
+            "binding instead of reverting to the default key."
+        )
+    assert out["keybinds"]["play_pause"] == DEFAULT_KEYBINDS["play_pause"]
+
+
 def test_normalize_keybinds_preserves_defaults_for_missing_actions():
     """The normalizer starts from DEFAULT_KEYBINDS so unmapped actions
     keep their original binding (the user only overrides what they care

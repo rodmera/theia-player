@@ -308,3 +308,45 @@ def test_note_and_spinner_unicode_only():
     for t in range(50):
         assert isinstance(anim.note(t), str)
         assert isinstance(anim.spinner(t), str)
+
+
+# ── regression: latent bugs caught during the audit ───────────────────
+
+
+def test_viz_model_clamps_energy_to_unit_interval():
+    """Setting ``energy > 1.0`` is a latent bug — the target formula
+    ``(r - floor(r)) * energy`` has no upper bound when energy > 1.
+    The bar heights could overflow past 1.0 and break the visualizer.
+
+    This regression test pins the contract: ``energy`` must be in [0,1].
+    Until the code is fixed, callers must respect this convention."""
+    m = anim.VizModel(bars=4, seed=0)
+    m.energy = 2.0  # pathological input
+    for _ in range(100):
+        m.tick()
+    # Heights should not exceed 1.0 — this fails today, surfacing the bug.
+    out_of_range = [h for h in m.heights if h > 1.0]
+    assert not out_of_range, (
+        f"VizModel.energy > 1.0 lets heights overflow [0,1]: {out_of_range}. "
+        "Fix by clamping target to energy or guarding the energy setter."
+    )
+
+
+def test_mini_gauge_width_zero_returns_empty():
+    """A width of 0 is a degenerate case; the function shouldn't crash."""
+    assert anim.mini_gauge(0.5, width=0).plain == ""
+
+
+def test_smooth_bar_width_zero_returns_empty():
+    """Same defensive check for the smooth bar."""
+    assert anim.smooth_bar(0.5, width=0).plain == ""
+
+
+def test_marquee_width_zero_returns_empty():
+    """Marquee with width=0 should return empty string instead of crashing."""
+    assert anim.marquee("hello", width=0, tick=0) == ""
+
+
+def test_marquee_width_negative_returns_empty():
+    """Negative width shouldn't index backward and crash."""
+    assert anim.marquee("hello", width=-1, tick=0) == ""

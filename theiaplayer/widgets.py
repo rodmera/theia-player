@@ -117,6 +117,19 @@ class SongTooltip(Container):
         self.absolute_offset = Offset(max(0, x), max(0, y))
 
 
+def _safe(s: str | None) -> str:
+    """Sanitize a single-line metadata field for tooltip rendering.
+
+    Replaces newlines/tabs with single spaces so a single malformed
+    title can't blow up the tooltip's fixed-height layout (the tooltip
+    is sized for exactly 7 sections; a title with embedded newlines
+    would silently add extra lines and offset everything below).
+    """
+    if not s:
+        return ""
+    return " ".join(s.split())
+
+
 def _format_song_tooltip(song: "Song", *, playing: bool = False) -> Text:
     """Build the multi-line Rich Text shown inside ``SongTooltip``.
 
@@ -130,20 +143,20 @@ def _format_song_tooltip(song: "Song", *, playing: bool = False) -> Text:
     title = Text()
     if playing:
         title.append(PLAY_GLYPH + " ", style=palette.green)
-    title.append(song.title or "—", style=f"bold {palette.text}")
+    title.append(_safe(song.title) or "—", style=f"bold {palette.text}")
     text.append_text(title)
 
     # 2) Artist (prominent, dim)
     if song.artist:
         text.append("\n")
-        text.append(song.artist, style=palette.dim)
+        text.append(_safe(song.artist), style=palette.dim)
 
     # 3) Album · year
-    if song.album or song.year:
+    if _safe(song.album) or song.year:
         text.append("\n")
         album_line = Text()
         if song.album:
-            album_line.append(song.album, style=palette.sub)
+            album_line.append(_safe(song.album), style=palette.sub)
         if song.year:
             album_line.append("  ·  ", style=palette.vfaint)
             album_line.append(str(song.year), style=palette.vfaint)
@@ -152,7 +165,7 @@ def _format_song_tooltip(song: "Song", *, playing: bool = False) -> Text:
     # 4) Genre
     if song.genre:
         text.append("\n")
-        text.append(song.genre, style=palette.dim)
+        text.append(_safe(song.genre), style=palette.dim)
 
     # 5) Duration · format · bitrate
     tech_bits: list[str] = []

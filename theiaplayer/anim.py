@@ -107,6 +107,8 @@ _MARQUEE_DWELL = 10  # ticks to rest at the start of each loop
 
 def marquee(text: str, width: int, tick: int) -> str:
     """Slide text that doesn't fit; text that fits is returned untouched."""
+    if width <= 0:
+        return ""
     if len(text) <= width:
         return text
     loop = text + _MARQUEE_GAP
@@ -144,12 +146,16 @@ class VizModel:
 
     def tick(self) -> None:
         self._t += 1
+        # Sanitize: the caller's contract is energy in [0, 1]. Out-of-range
+        # values would push targets above 1.0 (the formula divides the
+        # [0,1) random by energy, so energy > 1 lets the bar overflow).
+        e = max(0.0, min(1.0, self.energy))
         for i in range(self.n):
-            if self.energy > 0.05:
+            if e > 0.05:
                 if abs(self.heights[i] - self.targets[i]) < 0.08:
                     # deterministic-ish wobble: cheap hash of bar + time
                     r = math.sin(self._t * 12.9898 + i * 78.233) * 43758.5453
-                    self.targets[i] = (r - math.floor(r)) * self.energy
+                    self.targets[i] = (r - math.floor(r)) * e
             else:
                 self.targets[i] = 0.0
             self.heights[i] += (self.targets[i] - self.heights[i]) * 0.45

@@ -106,6 +106,40 @@ def test_format_song_tooltip_omits_blank_sections():
     assert "  ·  " not in plain
 
 
+def test_format_song_tooltip_strips_newlines_from_metadata():
+    """Newlines in title/artist/album/genre would otherwise add phantom
+    lines to the tooltip and offset everything below — the tooltip
+    is sized for exactly 7 sections. Today we sanitize them."""
+    song = Song(
+        id="x",
+        title="Multi\nLine\nTitle",
+        artist="Line1\nLine2",
+        album="Album\nX",
+        genre="Pop\nRock",
+        year=2024,
+    )
+    text = _format_song_tooltip(song)
+    plain = text.plain
+    # Newlines must be collapsed to spaces
+    assert "Multi Line Title" in plain
+    assert "Line1 Line2" in plain
+    assert "Album X" in plain
+    assert "Pop Rock" in plain
+    # No \nNewline jumps in the title (end-of-line is OK because the
+    # tooltip itself uses \n to separate sections)
+    assert "Line\nLine" not in plain  # would mean a phantom newline survived
+    assert "Multi\nLine" not in plain
+    assert "Album\nX" not in plain
+    assert "Pop\nRock" not in plain
+
+
+def test_format_song_tooltip_handles_tabs_and_multiple_whitespace():
+    """Tabs and runs of whitespace should also collapse to single spaces."""
+    song = Song(id="x", title="Foo\t\t  Bar   Baz")
+    text = _format_song_tooltip(song)
+    assert "Foo Bar Baz" in text.plain
+
+
 # ── QueueList hover wiring (Textual app context) ─────────────────────────
 
 
