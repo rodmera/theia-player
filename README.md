@@ -35,6 +35,18 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
   disc, rating, plays, starred) in a floating tooltip — the right column
   stays narrow; the queue — including your position *inside the current
   song* — survives a restart
+- **profile switcher** — `ctrl+g` to hop between Navidrome servers (e.g.
+  home / work / LAN) in-place, with the queue flushed to avoid cross-track
+  bugs
+- **audio device switcher** — `ctrl+d` to live-pick the active output
+  (laptop speakers, BT DAC, headphones) from `mpv`'s live
+  `audio_device_list`; the choice persists across restarts
+- **bit-perfect mode** — `audio_exclusive = true` in `player.toml` opens
+  the ALSA hardware path directly, bypassing PipeWire/Pulse mixers for
+  fidelity-audophile output
+- **Go-subtui config migration** — drop a `theia-subtui` TOML into
+  `~/.config/theia-player/` and the nested keybind subtables are
+  normalized to the flat Python schema automatically
 - **alive by default** — the wordmark shimmers, the visualizer pulses with
   playback, the progress bar has 1/8-cell resolution and breathes, long
   titles marquee, panels fade in; all driven by one 8fps heartbeat that
@@ -110,26 +122,56 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `ctrl+f` | Modo Focus (filtros avanzados: Hi-Res, décadas, joyas no escuchadas) |
 | `ctrl+w` | Ambientes & Modos (acceso directo a Lectura, Música Suave, Sesión Nocturna) |
 | `ctrl+v` | Ediciones & Versiones del Álbum (Original vs Remaster / Deluxe) |
+| `ctrl+g` | Cambiar de servidor Navidrome (profile switcher en caliente) |
+| `ctrl+d` | Cambiar dispositivo de salida de audio (DAC, BT, parlantes) |
 | `backspace` / `alt+left` | Volver a la vista anterior (historial de navegación) |
 | `s` / `r` | shuffle / repeat |
 | `f` | star / unstar |
 | `N` | toggle notifications (silent mode, muestra `[Silent]` en UI) |
+| `P` | modo privado (desactiva scrobbling temporal) |
 | `/` | search |
 | `h` `l` `j` `k` | move around, vim-style |
 | `t` / `T` | themes |
 | `ctrl+e` / `y` | equalizer (gains and presets) |
+| `L` | letra sincronizada (LRC) de la canción actual |
 
 ## desarrollo y pruebas
 
 El proyecto cuenta con dos suites de pruebas para garantizar el funcionamiento y robustez del reproductor:
 
-### 1. Pruebas Unitarias (`pytest`)
-Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones, dataclasses de dominio, contrato de `BINDINGS`, driver de audio, guardas de MPRIS, etc.):
+### 1. Pruebas Unitarias (`pytest`) — 352 tests
+
+Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones Go-subtui, dataclasses de dominio, contrato de `BINDINGS`, driver de audio, guardas de MPRIS, animaciones, widgets, mock del cliente Subsonic con `httpx.MockTransport`, etc.):
+
 ```sh
 .venv/bin/python3 -m pytest
 ```
 
-### 2. Pruebas de Integración Visual / Headless (`screenshots.py`)
+### 2. Cobertura de Tests
+
+```sh
+.venv/bin/python3 -m pytest --cov=theiaplayer --cov-report=term-missing
+```
+
+| Módulo | Cobertura |
+|---|---|
+| `theiaplayer/anim.py` (animaciones, color math) | **100%** |
+| `theiaplayer/playqueue.py` (cola de reproducción) | **100%** |
+| `theiaplayer/models.py` (dataclasses) | **100%** |
+| `theiaplayer/config.py` (carga + Go→Python migrator) | **95%** |
+| `theiaplayer/terminal_probe.py` (detección Ghostty/Kitty) | **93%** |
+| `theiaplayer/widgets.py` (UI) | **87%** |
+| `theiaplayer/mpris.py` (D-Bus) | **70%** |
+| `theiaplayer/api.py` (cliente Subsonic) | **69%** |
+| `theiaplayer/player.py` (wrapper mpv) | 47% |
+| `theiaplayer/screens.py` (modals) | 30% |
+| `theiaplayer/art.py` (render carátulas) | 35% |
+| `theiaplayer/app.py` (lifecycle principal) | 21% |
+| **TOTAL** | **42%** |
+
+> Los módulos con <70% son código de integración (UI events, wrappers mpv, render PIL) que requieren mocks complejos. La lógica pura y crítica para reproducir audio está al 100%.
+
+### 3. Pruebas de Integración Visual / Headless (`screenshots.py`)
 Para ejecutar una simulación interactiva completa de la TUI en caliente (levantando `mpv` y simulando pulsaciones de teclado) y exportar los assets visuales en SVG:
 ```sh
 .venv/bin/python3 tools/screenshots.py
