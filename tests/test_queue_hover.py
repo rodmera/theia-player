@@ -323,6 +323,7 @@ async def test_queue_list_does_not_collide_with_textual_tooltip_property(hover_a
 async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     """End-to-end: SongTooltip.render() returns a renderable that
     textual.visual.visualize accepts cleanly."""
+    from textual.content import Content
     from textual.visual import VisualError, visualize
 
     pilot, _, queue = hover_app
@@ -332,13 +333,13 @@ async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     await pilot.pause()
 
     payload = queue._hover_overlay.render()
-    assert isinstance(payload, Text), (
+    assert isinstance(payload, (Text, Content)), (
         f"tooltip.render() returned {type(payload).__name__}, "
-        "expected a plain Text renderable."
+        "expected a Text or Content renderable."
     )
-    # Round-trip through visualize() — must accept plain Text
+    # Round-trip through visualize() — must accept payload
     try:
         visualize(queue._hover_overlay, payload, markup=True)
     except VisualError as e:
         pytest.fail(f"visualize() rejected the tooltip payload: {e}")
-    assert "The Boy From Ipanema" in payload.plain
+    assert "The Boy From Ipanema" in str(payload)

@@ -41,7 +41,7 @@ class ClickList(NavList):
                 self.action_select()
 
 
-class SongTooltip(Container):
+class SongTooltip(Static):
     """Floating overlay that surfaces the full song metadata on hover.
 
     Mounted once by ``QueueList`` on the screen; shown/hidden by mouse
@@ -66,16 +66,10 @@ class SongTooltip(Container):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.border_title = "track info"
-        self._renderable: Text = Text("")
-
-    def render(self) -> Text:
-        """Return the current tooltip text as a Rich Text renderable."""
-        return self._renderable
 
     def show_song(self, song: "Song", *, playing: bool = False) -> None:
         """Render and display the tooltip for ``song``."""
-        self._renderable = _format_song_tooltip(song, playing=playing)
-        self.refresh()
+        self.update(_format_song_tooltip(song, playing=playing))
         self.add_class("-visible")
 
     def hide(self) -> None:
