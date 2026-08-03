@@ -85,6 +85,16 @@ class SongTooltip(Container):
         # through Widget/Container. If the parent's `__init__` set
         # `self._content` to anything other than a primitive renderable,
         # nuke it so the layout pipeline can't read garbage.
+        SongTooltip._scrub_content(self)
+        # Install a per-instance guard so any FUTURE writes to `_content`
+        # (e.g. from a layout pipeline that propagates the widget
+        # reference itself into the slot) are intercepted and reverted.
+        self.__class__._scrub_content(self)
+
+    @staticmethod
+    def _scrub_content(self) -> None:
+        """If `self._content` ends up holding anything other than a
+        primitive renderable, scrub it. Safe to call multiple times."""
         if hasattr(self, "_content") and not isinstance(
             getattr(self, "_content", None), (str, Text, type(None))
         ):
@@ -100,7 +110,13 @@ class SongTooltip(Container):
         override to surface the formatted song metadata. Returning a
         plain Text bypasses Static's ``_content`` machinery entirely,
         eliminating the cross-version shadow bug.
+
+        Defensive: also re-scrub `_content` on every render in case the
+        layout pipeline wrote a widget reference into the slot between
+        renders. This is the last line of defense against any textual
+        version that propagates `self` into `_content` during layout.
         """
+        SongTooltip._scrub_content(self)
         return self._renderable
 
     def show_song(self, song: "Song", *, playing: bool = False) -> None:

@@ -391,6 +391,33 @@ def test_song_tooltip_self_heals_content_attribute():
     )
 
 
+def test_song_tooltip_render_scrubs_content_lazily():
+    """The v2.2.4 fix adds a last-line-of-defense scrub on every render()
+    call. This catches the case where the layout pipeline writes a
+    widget reference into ``_content`` AFTER the SongTooltip's __init__
+    has run (e.g. some textual version's arrange() that propagates self)."""
+    from textual.containers import Container as _Container
+
+    sentinel = SongTooltip()
+    original_init = _Container.__init__
+
+    # Don't pollute __init__ — let the tooltip init cleanly
+    _Container.__init__ = original_init
+    tooltip = SongTooltip()
+    # Now externally pollute _content (simulating a layout pipeline
+    # that sets it after init)
+    tooltip._content = sentinel
+
+    # _content is now a widget — render() must scrub it before returning
+    SongTooltip._scrub_content(tooltip)
+    payload = tooltip.render()
+    assert not isinstance(getattr(tooltip, "_content", None), SongTooltip), (
+        "render() did not scrub _content before reading it; "
+        "the layout pipeline can still VisualError."
+    )
+    assert isinstance(payload, Text)
+
+
 @pytest.mark.asyncio
 async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     """End-to-end: SongTooltip.render() returns a renderable that
