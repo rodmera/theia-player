@@ -18,6 +18,13 @@ Covers three contracts:
    the live queue list so the index under the cursor resolves to a real
    ``Song``. A re-render that drops the currently-hovered index must
    hide the tooltip instead of leaving it showing the wrong song.
+
+4. v2.2.2 regression: ``SongTooltip`` must NOT contain ``Static`` (any
+   Static in the tree has a vulnerable ``_content`` slot that crashes
+   the layout pipeline in some textual versions). The tooltip is a
+   ``Container`` that overrides ``render()`` to return a plain ``Text``.
+   See CLAUDE.md "Tests contra bugs cross-version de textual" for the
+   full post-mortem.
 """
 
 from __future__ import annotations
