@@ -162,6 +162,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Discord Rich Presence | `discord_rpc.py` | Opcional: requiere `pypresence` + app_id |
 | Keybinds configurables | `config.py`, `app.py` | `[keybinds]` en player.toml — 34 acciones |
 | Queue reorder | `playqueue.py`, `app.py` | `ctrl+↑`/`ctrl+↓` en queue panel |
+| Tooltip de Cola (Queue Hover) | `widgets.py`, `app.py` | Al pasar el mouse sobre un track de la cola aparece un tooltip flotante (`SongTooltip`) con la metadata completa: título, artista, álbum, año, género, duración, formato, bitrate, track/disc, rating, plays y starred. Se actualiza en vivo al mover el cursor entre filas y se oculta al salir del panel. |
 | Share link | `api.py`, `app.py` | `S` — llama `createShare`, copia al clipboard |
 | Rating 1-5 | `api.py`, `models.py`, `app.py` | Teclas `1`-`5` en tracks panel; `0` borra |
 | Letras Sincronizadas (Lyrics) | `api.py`, `screens.py`, `app.py` | `L` — Detección automática de formato LRC (sincronizado por milisegundos). Resalta y desplaza verticalmente (scroll suave) en tiempo real siguiendo la reproducción real de mpv. |

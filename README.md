@@ -30,8 +30,11 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
   truecolor half-cells everywhere else (`NAVITUI_ART=auto|tgp|sixel|halfcell|unicode|off`)
 - **a queue that behaves** — shows what's *up next* (played tracks dim out
   above; scroll up for history), add (`a`), play-next (`A`), remove, clear,
-  shuffle that keeps the current track, repeat off/all/one; the queue —
-  including your position *inside the current song* — survives a restart
+  shuffle that keeps the current track, repeat off/all/one; hover any row
+  to see the full song info (album, year, genre, format, bitrate, track,
+  disc, rating, plays, starred) in a floating tooltip — the right column
+  stays narrow; the queue — including your position *inside the current
+  song* — survives a restart
 - **alive by default** — the wordmark shimmers, the visualizer pulses with
   playback, the progress bar has 1/8-cell resolution and breathes, long
   titles marquee, panels fade in; all driven by one 8fps heartbeat that

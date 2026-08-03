@@ -40,7 +40,7 @@ from theiaplayer.art import CoverArt
 from theiaplayer.models import Album, Artist, Playlist, Song
 from theiaplayer.playqueue import PlayQueue
 from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal, PlaylistPickerModal, SpotlightModal
-from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH
+from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH, QueueList
 
 VIEWS = [
     ("home", "home"),
@@ -243,7 +243,7 @@ class TheIAPlayerApp(KitApp):
             with Vertical(id="side"):
                 yield CoverArt(id="art-panel")
                 with Vertical(id="queue-panel", classes="panel"):
-                    yield ClickList(id="queue-list")
+                    yield QueueList(id="queue-list")
         yield NowPlaying(id="now")
         yield Footer()
 
@@ -2039,7 +2039,10 @@ class TheIAPlayerApp(KitApp):
                 row.append(f"  {song.artist}", style=palette.dim)
             options.append(Option(row, id=f"q{i}"))
         self._fill("#queue-list", options)
-        ol = self.query_one("#queue-list", NavList)
+        ol = self.query_one("#queue-list", QueueList)
+        # Bind the song list to the queue widget so the hover tooltip
+        # can resolve the row index back to a full Song object.
+        ol.set_songs(self.queue.songs, current_index=self.queue.index)
         if options and 0 <= self.queue.index < len(options):
             ol.highlighted = self.queue.index
             # pin the current track to the top so the panel reads "up next";

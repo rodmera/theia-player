@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 
 from rich.text import Text
+from textual.geometry import Offset
 from textual.widgets import Static
 
 from ricekit import icons, palette
@@ -37,6 +38,243 @@ class ClickList(NavList):
             self.highlighted = clicked
             if getattr(event, "chain", 1) >= 2:
                 self.action_select()
+
+
+class SongTooltip(Static):
+    """Floating overlay that surfaces the full song metadata on hover.
+
+    Mounted once by ``QueueList`` on the screen; shown/hidden by mouse
+    events. Lives on its own layer so it floats above every panel and is
+    not clipped by the queue's narrow column.
+    """
+
+    DEFAULT_CSS = """
+    SongTooltip {
+        layer: _theia_tooltips;
+        background: $panel;
+        border: round $kit-border;
+        padding: 0 2;
+        width: auto;
+        height: auto;
+        max-width: 60;
+        display: none;
+    }
+    SongTooltip.-visible { display: block; }
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.border_title = "track info"
+        self._content: Text = Text("")
+
+    def show_song(self, song: "Song", *, playing: bool = False) -> None:
+        """Render and display the tooltip for ``song``.
+
+        The Static's size is recomputed from the new content so subsequent
+        ``position_near`` calls clamp against the real bounding box.
+        """
+        self._content = _format_song_tooltip(song, playing=playing)
+        self.update(self._content)
+        self.add_class("-visible")
+
+    def hide(self) -> None:
+        self.remove_class("-visible")
+
+    def position_near(self, mouse_x: int, mouse_y: int) -> None:
+        """Pin the tooltip to the cursor, clamped inside the screen."""
+        if not self.has_class("-visible"):
+            return
+        try:
+            screen_w, screen_h = self.screen.size.width, self.screen.size.height
+        except Exception:
+            return
+        tip_w = self.outer_size.width or 40
+        tip_h = self.outer_size.height or 6
+        x = mouse_x + 2
+        y = mouse_y + 1
+        if x + tip_w > screen_w:
+            x = mouse_x - tip_w - 2
+        if y + tip_h > screen_h:
+            y = mouse_y - tip_h - 1
+        self.absolute_offset = Offset(max(0, x), max(0, y))
+
+
+def _format_song_tooltip(song: "Song", *, playing: bool = False) -> Text:
+    """Build the multi-line Rich Text shown inside ``SongTooltip``.
+
+    Pure function so unit tests can verify content without spinning up a
+    Textual app. Sections are joined with blank lines so the tooltip reads
+    cleanly even at 60 cols wide.
+    """
+    text = Text()
+
+    # 1) Title + state badge
+    title = Text()
+    if playing:
+        title.append(PLAY_GLYPH + " ", style=palette.green)
+    title.append(song.title or "—", style=f"bold {palette.text}")
+    text.append_text(title)
+
+    # 2) Artist (prominent, dim)
+    if song.artist:
+        text.append("\n")
+        text.append(song.artist, style=palette.dim)
+
+    # 3) Album · year
+    if song.album or song.year:
+        text.append("\n")
+        album_line = Text()
+        if song.album:
+            album_line.append(song.album, style=palette.sub)
+        if song.year:
+            album_line.append("  ·  ", style=palette.vfaint)
+            album_line.append(str(song.year), style=palette.vfaint)
+        text.append_text(album_line)
+
+    # 4) Genre
+    if song.genre:
+        text.append("\n")
+        text.append(song.genre, style=palette.dim)
+
+    # 5) Duration · format · bitrate
+    tech_bits: list[str] = []
+    if song.duration:
+        tech_bits.append(anim.fmt_time(song.duration))
+    if song.suffix:
+        tech_bits.append(song.suffix.upper())
+    if song.bit_rate:
+        tech_bits.append(f"{song.bit_rate} kbps")
+    if tech_bits:
+        text.append("\n")
+        tech = Text()
+        tech.append(tech_bits[0], style=f"bold {palette.peach}")
+        for piece in tech_bits[1:]:
+            tech.append("  ·  ", style=palette.vfaint)
+            tech.append(piece, style=palette.dim)
+        text.append_text(tech)
+
+    # 6) Track · disc
+    track_bits: list[str] = []
+    if song.track:
+        track_bits.append(f"Track {song.track}")
+    if song.disc:
+        track_bits.append(f"Disc {song.disc}")
+    if track_bits:
+        text.append("\n")
+        text.append("  ·  ".join(track_bits), style=palette.vfaint)
+
+    # 7) Rating · play count · starred
+    tail_bits: list[tuple[str, str]] = []
+    if song.rating:
+        stars = "★" * song.rating + "☆" * (5 - song.rating)
+        tail_bits.append((stars, palette.yellow))
+    if song.play_count:
+        tail_bits.append((f"{song.play_count} plays", palette.dim))
+    if song.starred:
+        tail_bits.append((f"{icons.STAR} starred", palette.yellow))
+    if tail_bits:
+        text.append("\n")
+        tail = Text()
+        for i, (piece, style) in enumerate(tail_bits):
+            if i:
+                tail.append("  ·  ", style=palette.vfaint)
+            tail.append(piece, style=style)
+        text.append_text(tail)
+
+    return text
+
+
+class QueueList(ClickList):
+    """The queue column — a ``ClickList`` that shows a hover tooltip.
+
+    The right-hand column is narrow on purpose, so titles and artist
+    names get ellipsized. This widget keeps the existing single/double
+    click behavior and adds: when the mouse rests on a row, a floating
+    ``SongTooltip`` with the full metadata (title, artist, album, year,
+    genre, duration, format, bitrate, track, disc, rating, plays, starred)
+    appears next to the cursor and updates live as it moves between rows.
+    """
+
+    BINDINGS = ClickList.BINDINGS  # preserve j/k/g/G navigation
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._songs: list[Song] = []
+        self._tooltip: SongTooltip | None = None
+        self._last_hover_idx: int | None = None
+
+    # ── song list management (called by the app on every queue render) ──
+
+    def set_songs(self, songs: list[Song], *, current_index: int = -1) -> None:
+        """Bind the queue's songs so ``_mouse_hovering_over`` resolves to
+        a real ``Song`` when computing the tooltip."""
+        self._songs = list(songs)
+        self._current_index = current_index
+        if self._last_hover_idx is None or self._last_hover_idx >= len(self._songs):
+            # The hovered row no longer exists (queue cleared, row removed)
+            self._last_hover_idx = None
+            if self._tooltip is not None:
+                self._tooltip.hide()
+            return
+        # Song at the same index may have changed (re-render with new order)
+        self._show_for_idx(self._last_hover_idx)
+
+    # ── lifecycle ───────────────────────────────────────────────────────
+
+    def on_mount(self) -> None:
+        # Mount the overlay tooltip on the screen so it floats above the
+        # queue and is not clipped by the panel's narrow column.
+        self._tooltip = SongTooltip()
+        self.screen.mount(self._tooltip)
+
+    def on_unmount(self) -> None:
+        if self._tooltip is not None:
+            try:
+                self._tooltip.remove()
+            except Exception:
+                pass
+            self._tooltip = None
+
+    # ── mouse routing ───────────────────────────────────────────────────
+
+    def _on_mouse_move(self, event) -> None:
+        super()._on_mouse_move(event)
+        self._handle_hover(event.screen_x, event.screen_y)
+
+    def _on_leave(self, _) -> None:
+        super()._on_leave(_)
+        self._last_hover_idx = None
+        if self._tooltip is not None:
+            self._tooltip.hide()
+
+    # ── tooltip plumbing ────────────────────────────────────────────────
+
+    def _handle_hover(self, screen_x: int, screen_y: int) -> None:
+        idx = getattr(self, "_mouse_hovering_over", None)
+        if idx is None or idx < 0 or idx >= len(self._songs):
+            self._last_hover_idx = None
+            if self._tooltip is not None:
+                self._tooltip.hide()
+            return
+        if idx == self._last_hover_idx and self._tooltip is not None and self._tooltip.has_class("-visible"):
+            # Same row, but the cursor moved inside it — keep it pinned to the cursor.
+            self._tooltip.position_near(screen_x, screen_y)
+            return
+        self._last_hover_idx = idx
+        self._show_for_idx(idx, screen_x, screen_y)
+
+    def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
+        if self._tooltip is None or idx < 0 or idx >= len(self._songs):
+            return
+        playing = idx == getattr(self, "_current_index", -1)
+        self._tooltip.show_song(self._songs[idx], playing=playing)
+        if screen_x is not None and screen_y is not None:
+            # The size just changed with the new content; wait a tick so
+            # ``outer_size`` reflects the rendered tooltip before clamping.
+            self.call_after_refresh(
+                lambda x=screen_x, y=screen_y: self._tooltip.position_near(x, y)
+            )
+
 
 class Logo(Static):
     """The NaviTui wordmark with a constant shimmer sweeping across it."""
