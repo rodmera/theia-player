@@ -48,11 +48,13 @@ class SongTooltip(Container):
     events. Lives on its own layer so it floats above every panel and is
     not clipped by the queue's narrow column.
 
-    Implemented as a ``Container`` with a single ``Static`` child (the
-    ``_label``) rather than subclassing ``Static`` directly, so the
-    per-version ``_content`` attribute on the parent class never shadows
-    the rendered payload. Updating the Static child via ``update()``
-    triggers a layout pass that resizes the floating tooltip correctly.
+    Renders the formatted text directly via ``render()`` — does NOT
+    delegate to a child Static. This makes the tooltip immune to the
+    Static ``_content`` shadow bug across textual versions (where
+    Static's ``_content`` slot collides with any user code that writes
+    a single-underscore ``_content`` attribute). The renderable is
+    always a plain ``Text`` object that ``visualize`` accepts in every
+    textual version.
     """
 
     DEFAULT_CSS = """
@@ -67,32 +69,27 @@ class SongTooltip(Container):
         display: none;
     }
     SongTooltip.-visible { display: block; }
-    SongTooltip > Static {
-        width: auto;
-        height: auto;
-    }
     """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.border_title = "track info"
-        self._label: Static | None = None
+        self._renderable: Text = Text("")
 
-    def compose(self):
-        yield Static("")
+    def render(self) -> Text:
+        """Return the current tooltip text as a Rich Text renderable.
 
-    def on_mount(self) -> None:
-        self._label = self.query_one(Static)
+        Container's default ``render()`` returns Blank (a no-op), so we
+        override to surface the formatted song metadata. Returning a
+        plain Text bypasses Static's ``_content`` machinery entirely,
+        eliminating the cross-version shadow bug.
+        """
+        return self._renderable
 
     def show_song(self, song: "Song", *, playing: bool = False) -> None:
-        """Render and display the tooltip for ``song``.
-
-        The Static's size is recomputed from the new content so subsequent
-        ``position_near`` calls clamp against the real bounding box.
-        """
-        if self._label is None:
-            return
-        self._label.update(_format_song_tooltip(song, playing=playing))
+        """Render and display the tooltip for ``song``."""
+        self._renderable = _format_song_tooltip(song, playing=playing)
+        self.refresh()
         self.add_class("-visible")
 
     def hide(self) -> None:
