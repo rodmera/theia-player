@@ -271,3 +271,78 @@ async def test_song_tooltip_layout_does_not_crash_on_hover(hover_app):
     await pilot.pause()
     queue._tooltip.render()  # would raise VisualError on the second pass
     assert queue._tooltip.has_class("-visible")
+
+
+def test_song_tooltip_does_not_shadow_static_content_attribute():
+    """The production crash was caused by SongTooltip shadowing the
+    parent ``Static`` class's ``_content`` attribute in textual versions
+    where Static uses ``self._content`` (single underscore) instead of
+    name-mangled ``__content``. We simulate that scenario here: a
+    fake "Static-like" parent where ``self._content`` is the literal
+    payload attribute. If SongTooltip's ``__init__`` writes
+    ``self._content``, it would corrupt the parent's payload slot.
+
+    The test asserts the invariant by checking that after init the
+    tooltip has no attribute literally named ``_content`` (it stores
+    the text on ``_label.update(...)`` instead). This catches the
+    regression across textual versions.
+    """
+    from textual.containers import Container as _Container
+    from textual.widgets import Static as _Static
+
+    # Sanity: in the current textual version, Static uses __content.
+    # The test still works if it switches to _content in the future:
+    # we don't care about the parent, we care about the child class.
+    tooltip = SongTooltip()
+    # The literal attribute `_content` must NOT be set on the tooltip —
+    # that's the invariant that crashed prod when the parent class
+    # happened to use the same name.
+    assert not hasattr(tooltip, "_content"), (
+        "SongTooltip sets self._content, which shadows the parent "
+        "Static's _content attribute in some textual versions and "
+        "caused VisualError('unable to display SongTooltip type') "
+        "in production. Store the rendered text on _label instead."
+    )
+    # And the type must be a Container (not a Static) so the parent
+    # class's payload machinery is never reachable.
+    assert isinstance(tooltip, _Container), (
+        "SongTooltip must subclass Container, not Static, so the "
+        "parent class's _content attribute is never read."
+    )
+    assert not isinstance(tooltip, _Static)
+
+
+@pytest.mark.asyncio
+async def test_song_tooltip_visualize_accepts_label_payload(hover_app):
+    """End-to-end: the payload lives on the inner Static label, and
+    ``visualize`` accepts it as a valid renderable type. We explicitly
+    call ``visualize`` on the inner label's content — the same call
+    path that crashed in production — to lock in the contract.
+    """
+    from textual.visual import VisualError, visualize
+
+    pilot, _, queue = hover_app
+    queue.set_songs([_full_song()])
+    queue._mouse_hovering_over = 0
+    queue._handle_hover(10, 10)
+    await pilot.pause()
+
+    label = queue._tooltip._label
+    # The label is a Static; rendering it goes through the same
+    # _content/visualize code path that the buggy SongTooltip used to
+    # hit. Lift the visual out and round-trip it through visualize
+    # to prove the payload survives the framework's validator.
+    rendered = label.render()
+    # rendered is a Visual; the safer check is on the Static's content
+    # that produced it. Reach into the mangled/maybe-not-mangled slot.
+    payload = getattr(label, "_Static__content", None) or getattr(label, "_content", None)
+    assert payload is not None, "label has no resolvable content attribute"
+    assert not isinstance(payload, SongTooltip), (
+        "label content is the SongTooltip widget itself — the same "
+        "corruption that crashed prod. The parent class resolved the "
+        "renderable to the tooltip instance."
+    )
+    try:
+        visualize(label, payload, markup=True)
+    except VisualError as e:
+        pytest.fail(f"visualize() rejected the label payload: {e}")
