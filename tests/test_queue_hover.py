@@ -183,8 +183,8 @@ async def hover_app():
     app = host_cls()
     async with app.run_test() as pilot:
         queue: QueueList = app.query_one("#q", QueueList)
-        # on_mount has fired, so _tooltip is live
-        assert queue._tooltip is not None
+        # on_mount has fired, so _hover_overlay is live
+        assert queue._hover_overlay is not None
         yield pilot, app, queue
 
 
@@ -193,7 +193,7 @@ async def test_queue_list_mounts_song_tooltip_on_screen(hover_app):
     _, _, queue = hover_app
     # The SongTooltip is mounted on the screen (not inside the queue),
     # so it lives alongside the host in the same Screen.
-    tooltip = queue._tooltip
+    tooltip = queue._hover_overlay
     assert tooltip is not None
     assert isinstance(tooltip, SongTooltip)
     # Not visible until something is hovered
@@ -207,10 +207,10 @@ async def test_queue_list_shows_tooltip_when_hover_index_in_range(hover_app):
     # Simulate the OptionList state where the mouse is on row 0
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    assert queue._tooltip.has_class("-visible")
+    assert queue._hover_overlay.has_class("-visible")
     # The payload lives on the inner Static label (the Container carries the
     # border / padding, the label carries the rendered text).
-    label_repr = str(queue._tooltip.render())
+    label_repr = str(queue._hover_overlay.render())
     assert "The Boy From Ipanema" in label_repr
 
 
@@ -220,11 +220,11 @@ async def test_queue_list_hides_tooltip_when_index_out_of_range(hover_app):
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    assert queue._tooltip.has_class("-visible")
+    assert queue._hover_overlay.has_class("-visible")
 
     # Now the queue shrinks: index 0 is gone
     queue.set_songs([])
-    assert not queue._tooltip.has_class("-visible")
+    assert not queue._hover_overlay.has_class("-visible")
     assert queue._last_hover_idx is None
 
 
@@ -237,12 +237,12 @@ async def test_queue_list_set_songs_preserves_hover_when_in_range(hover_app):
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    assert queue._tooltip.has_class("-visible")
+    assert queue._hover_overlay.has_class("-visible")
 
     replacement = Song(id="s2", title="Different Track", artist="Other")
     queue.set_songs([replacement])
-    assert queue._tooltip.has_class("-visible")
-    assert "Different Track" in str(queue._tooltip.render())
+    assert queue._hover_overlay.has_class("-visible")
+    assert "Different Track" in str(queue._hover_overlay.render())
 
 
 @pytest.mark.asyncio
@@ -253,12 +253,12 @@ async def test_queue_list_handle_hover_hides_on_invalid_index(hover_app):
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    assert queue._tooltip.has_class("-visible")
+    assert queue._hover_overlay.has_class("-visible")
 
     # Simulate OptionList clearing the hover state on clear_options
     queue._mouse_hovering_over = None
     queue._handle_hover(11, 11)
-    assert not queue._tooltip.has_class("-visible")
+    assert not queue._hover_overlay.has_class("-visible")
 
 
 @pytest.mark.asyncio
@@ -269,12 +269,12 @@ async def test_queue_list_on_leave_hides_tooltip(hover_app):
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    assert queue._tooltip.has_class("-visible")
+    assert queue._hover_overlay.has_class("-visible")
 
     # Dispatch a synthetic leave event
     queue.post_message(Leave(queue))
     await hover_app[0].pause()
-    assert not queue._tooltip.has_class("-visible")
+    assert not queue._hover_overlay.has_class("-visible")
     assert queue._last_hover_idx is None
 
 
@@ -290,141 +290,39 @@ def test_queue_list_preserves_clicklist_bindings():
 
 
 @pytest.mark.asyncio
-async def test_song_tooltip_layout_does_not_crash_on_hover(hover_app):
-    """Regression for the production crash: ``Static._content`` (or any
-    `_content`-named attribute on the textual version installed) was being
-    passed as the tooltip's payload, which made ``visualize`` raise
-    ``VisualError: unable to display 'SongTooltip' type``.
+async def test_queue_list_does_not_collide_with_textual_tooltip_property(hover_app):
+    """CRITICAL REGRESSION TEST FOR PRODUCTION CRASH:
+    Textual's ``Widget`` defines a ``@property def tooltip`` backed by
+    ``self._tooltip``.
 
-    The fix was to stop subclassing ``Static`` for the tooltip. Instead
-    the tooltip is a ``Container`` with a single ``Static`` child carrying
-    the actual text. This test mounts the real layout pass twice (initial
-    mount + a hover-triggered update) and asserts that neither raise.
+    If QueueList assigns its custom overlay to ``self._tooltip``,
+    Textual's internal mouse-hover timer (``Screen._handle_tooltip_timer``)
+    reads ``QueueList.tooltip``, gets the ``SongTooltip`` widget instance,
+    and tries to update Textual's built-in ``Tooltip`` widget with it,
+    raising ``VisualError: unable to display 'SongTooltip' type``.
+
+    This test asserts that QueueList's native ``tooltip`` property and
+    ``_tooltip`` attribute remain None so Textual's built-in tooltip
+    engine is never triggered for QueueList, while the custom overlay
+    lives safely on ``_hover_overlay``.
     """
-    pilot, _, queue = hover_app
-    queue.set_songs([_full_song()])
-    # Initial layout pass already happened during on_mount; surface it by
-    # forcing the screen to refresh and then rendering the tooltip.
-    await pilot.pause()
-    queue._tooltip.render()  # would raise VisualError before the fix
-    # Hover pass — this used to swap ``content`` for the widget itself
-    queue._mouse_hovering_over = 0
-    queue._handle_hover(10, 10)
-    await pilot.pause()
-    queue._tooltip.render()  # would raise VisualError on the second pass
-    assert queue._tooltip.has_class("-visible")
+    pilot, app, queue = hover_app
+    # 1. Native Widget.tooltip property must be None
+    assert queue.tooltip is None
+    assert queue._tooltip is None
 
+    # 2. Custom overlay is stored on _hover_overlay
+    assert queue._hover_overlay is not None
+    assert isinstance(queue._hover_overlay, SongTooltip)
 
-def test_song_tooltip_does_not_shadow_static_content_attribute():
-    """The production crash was caused by SongTooltip (when it subclassed
-    Static) shadowing the parent ``Static`` class's ``_content`` slot in
-    textual versions where Static uses ``self._content`` (single underscore)
-    instead of name-mangled ``__content``. The v2.2.2 fix removes
-    Static entirely — SongTooltip is a Container that returns a Text
-    directly from ``render()``.
-
-    The invariant: SongTooltip must NOT have a ``_content`` attribute
-    that any parent Static class could reach. We simulate the
-    problematic scenario by checking that the tooltip never sets any
-    attribute literally named ``_content``.
-    """
-    from textual.containers import Container as _Container
-    from textual.widgets import Static as _Static
-
-    tooltip = SongTooltip()
-    # The literal `_content` attribute must NOT exist on the tooltip —
-    # that's the invariant that crashed prod when the parent Static
-    # class happened to use the same name.
-    assert not hasattr(tooltip, "_content"), (
-        "SongTooltip sets self._content, which would shadow a parent "
-        "Static's _content attribute in some textual versions and "
-        "cause VisualError('unable to display SongTooltip type'). "
-        "The current design stores the rendered text on _renderable "
-        "instead."
-    )
-    # And the type must be a Container (not a Static) so the parent
-    # class's payload machinery is never reachable.
-    assert isinstance(tooltip, _Container), (
-        "SongTooltip must subclass Container, not Static, so the "
-        "parent class's _content attribute is never read."
-    )
-    assert not isinstance(tooltip, _Static)
-    # The renderable is the safe Text storage we added in v2.2.2.
-    assert hasattr(tooltip, "_renderable")
-    assert isinstance(tooltip._renderable, Text)
-
-
-def test_song_tooltip_self_heals_content_attribute():
-    """Some textual versions propagate a ``_content`` slot through
-    Widget/Container. If the parent class's ``__init__`` ever sets
-    ``self._content`` to a widget reference (instead of leaving it
-    empty), the layout pipeline crashes with VisualError.
-
-    The v2.2.3 fix scrubs ``_content`` in ``__init__`` if it ends up
-    holding anything other than a primitive renderable. Simulate the
-    pathological case by force-injecting a widget into ``_content``
-    BEFORE the tooltip's ``__init__`` runs (mimicking a parent class
-    that sets the slot during ``__init__``).
-    """
-    from textual.containers import Container as _Container
-
-    # Inject _content=widget before the tooltip's __init__ runs.
-    # We patch Container.__init__ to do this for one instance.
-    sentinel = SongTooltip()
-    original_init = _Container.__init__
-
-    def polluted_init(self, *args, **kwargs):
-        self._content = sentinel  # the dangerous state
-        original_init(self, *args, **kwargs)
-
-    _Container.__init__ = polluted_init
-    try:
-        tooltip = SongTooltip()
-    finally:
-        _Container.__init__ = original_init
-
-    # After our __init__ runs, _content must NOT be a widget anymore.
-    assert not isinstance(getattr(tooltip, "_content", None), SongTooltip), (
-        f"SongTooltip.__init__ did not scrub self._content; "
-        f"still pointing at {type(tooltip._content).__name__}. "
-        "The layout pipeline will VisualError on this attribute."
-    )
-
-
-def test_song_tooltip_render_scrubs_content_lazily():
-    """The v2.2.4 fix adds a last-line-of-defense scrub on every render()
-    call. This catches the case where the layout pipeline writes a
-    widget reference into ``_content`` AFTER the SongTooltip's __init__
-    has run (e.g. some textual version's arrange() that propagates self)."""
-    from textual.containers import Container as _Container
-
-    sentinel = SongTooltip()
-    original_init = _Container.__init__
-
-    # Don't pollute __init__ — let the tooltip init cleanly
-    _Container.__init__ = original_init
-    tooltip = SongTooltip()
-    # Now externally pollute _content (simulating a layout pipeline
-    # that sets it after init)
-    tooltip._content = sentinel
-
-    # _content is now a widget — render() must scrub it before returning
-    SongTooltip._scrub_content(tooltip)
-    payload = tooltip.render()
-    assert not isinstance(getattr(tooltip, "_content", None), SongTooltip), (
-        "render() did not scrub _content before reading it; "
-        "the layout pipeline can still VisualError."
-    )
-    assert isinstance(payload, Text)
+    # 3. Simulate Textual's screen tooltip timer — must NOT raise
+    app.screen._handle_tooltip_timer(queue)
 
 
 @pytest.mark.asyncio
 async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     """End-to-end: SongTooltip.render() returns a renderable that
-    textual.visual.visualize accepts. The production crash fired when
-    the tooltip's underlying Static slot got polluted with the widget
-    itself; the new design returns a Text directly so no Static slot
-    is reachable."""
+    textual.visual.visualize accepts cleanly."""
     from textual.visual import VisualError, visualize
 
     pilot, _, queue = hover_app
@@ -433,17 +331,14 @@ async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     queue._handle_hover(10, 10)
     await pilot.pause()
 
-    # The tooltip itself renders to whatever _format_song_tooltip
-    # returned — a plain Text, no widget pollution possible.
-    payload = queue._tooltip.render()
+    payload = queue._hover_overlay.render()
     assert isinstance(payload, Text), (
         f"tooltip.render() returned {type(payload).__name__}, "
         "expected a plain Text renderable."
     )
-    # Round-trip through visualize() — the same call that crashed prod.
+    # Round-trip through visualize() — must accept plain Text
     try:
-        visualize(queue._tooltip, payload, markup=True)
+        visualize(queue._hover_overlay, payload, markup=True)
     except VisualError as e:
         pytest.fail(f"visualize() rejected the tooltip payload: {e}")
-    # Sanity: the rendered text contains the title.
     assert "The Boy From Ipanema" in payload.plain

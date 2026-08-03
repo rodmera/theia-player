@@ -47,20 +47,6 @@ class SongTooltip(Container):
     Mounted once by ``QueueList`` on the screen; shown/hidden by mouse
     events. Lives on its own layer so it floats above every panel and is
     not clipped by the queue's narrow column.
-
-    Renders the formatted text directly via ``render()`` — does NOT
-    delegate to a child Static. This makes the tooltip immune to the
-    Static ``_content`` shadow bug across textual versions (where
-    Static's ``_content`` slot collides with any user code that writes
-    a single-underscore ``_content`` attribute). The renderable is
-    always a plain ``Text`` object that ``visualize`` accepts in every
-    textual version.
-
-    Self-healing: ``__init__`` scrubs any pre-existing ``_content``
-    attribute that the parent class chain may have set during a
-    pathological compose path. This is belt-and-suspenders against
-    any textual version where Container inherits a `_content` slot
-    that ends up holding the widget reference itself.
     """
 
     DEFAULT_CSS = """
@@ -81,42 +67,9 @@ class SongTooltip(Container):
         super().__init__(**kwargs)
         self.border_title = "track info"
         self._renderable: Text = Text("")
-        # Self-heal: some textual versions propagate a `_content` slot
-        # through Widget/Container. If the parent's `__init__` set
-        # `self._content` to anything other than a primitive renderable,
-        # nuke it so the layout pipeline can't read garbage.
-        SongTooltip._scrub_content(self)
-        # Install a per-instance guard so any FUTURE writes to `_content`
-        # (e.g. from a layout pipeline that propagates the widget
-        # reference itself into the slot) are intercepted and reverted.
-        self.__class__._scrub_content(self)
-
-    @staticmethod
-    def _scrub_content(self) -> None:
-        """If `self._content` ends up holding anything other than a
-        primitive renderable, scrub it. Safe to call multiple times."""
-        if hasattr(self, "_content") and not isinstance(
-            getattr(self, "_content", None), (str, Text, type(None))
-        ):
-            try:
-                self._content = ""
-            except (AttributeError, TypeError):
-                pass
 
     def render(self) -> Text:
-        """Return the current tooltip text as a Rich Text renderable.
-
-        Container's default ``render()`` returns Blank (a no-op), so we
-        override to surface the formatted song metadata. Returning a
-        plain Text bypasses Static's ``_content`` machinery entirely,
-        eliminating the cross-version shadow bug.
-
-        Defensive: also re-scrub `_content` on every render in case the
-        layout pipeline wrote a widget reference into the slot between
-        renders. This is the last line of defense against any textual
-        version that propagates `self` into `_content` during layout.
-        """
-        SongTooltip._scrub_content(self)
+        """Return the current tooltip text as a Rich Text renderable."""
         return self._renderable
 
     def show_song(self, song: "Song", *, playing: bool = False) -> None:
@@ -254,6 +207,10 @@ class QueueList(ClickList):
     ``SongTooltip`` with the full metadata (title, artist, album, year,
     genre, duration, format, bitrate, track, disc, rating, plays, starred)
     appears next to the cursor and updates live as it moves between rows.
+
+    Note: The overlay widget is stored in ``self._hover_overlay`` (NOT
+    ``self._tooltip``) to avoid colliding with Textual's reserved
+    ``Widget._tooltip`` property backing attribute.
     """
 
     BINDINGS = ClickList.BINDINGS  # preserve j/k/g/G navigation
@@ -261,7 +218,7 @@ class QueueList(ClickList):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._songs: list[Song] = []
-        self._tooltip: SongTooltip | None = None
+        self._hover_overlay: SongTooltip | None = None
         self._last_hover_idx: int | None = None
 
     # ── song list management (called by the app on every queue render) ──
@@ -274,8 +231,8 @@ class QueueList(ClickList):
         if self._last_hover_idx is None or self._last_hover_idx >= len(self._songs):
             # The hovered row no longer exists (queue cleared, row removed)
             self._last_hover_idx = None
-            if self._tooltip is not None:
-                self._tooltip.hide()
+            if self._hover_overlay is not None:
+                self._hover_overlay.hide()
             return
         # Song at the same index may have changed (re-render with new order)
         self._show_for_idx(self._last_hover_idx)
@@ -285,16 +242,16 @@ class QueueList(ClickList):
     def on_mount(self) -> None:
         # Mount the overlay tooltip on the screen so it floats above the
         # queue and is not clipped by the panel's narrow column.
-        self._tooltip = SongTooltip()
-        self.screen.mount(self._tooltip)
+        self._hover_overlay = SongTooltip()
+        self.screen.mount(self._hover_overlay)
 
     def on_unmount(self) -> None:
-        if self._tooltip is not None:
+        if self._hover_overlay is not None:
             try:
-                self._tooltip.remove()
+                self._hover_overlay.remove()
             except Exception:
                 pass
-            self._tooltip = None
+            self._hover_overlay = None
 
     # ── mouse routing ───────────────────────────────────────────────────
 
@@ -305,8 +262,8 @@ class QueueList(ClickList):
     def _on_leave(self, _) -> None:
         super()._on_leave(_)
         self._last_hover_idx = None
-        if self._tooltip is not None:
-            self._tooltip.hide()
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
 
     # ── tooltip plumbing ────────────────────────────────────────────────
 
@@ -314,26 +271,26 @@ class QueueList(ClickList):
         idx = getattr(self, "_mouse_hovering_over", None)
         if idx is None or idx < 0 or idx >= len(self._songs):
             self._last_hover_idx = None
-            if self._tooltip is not None:
-                self._tooltip.hide()
+            if self._hover_overlay is not None:
+                self._hover_overlay.hide()
             return
-        if idx == self._last_hover_idx and self._tooltip is not None and self._tooltip.has_class("-visible"):
+        if idx == self._last_hover_idx and self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
             # Same row, but the cursor moved inside it — keep it pinned to the cursor.
-            self._tooltip.position_near(screen_x, screen_y)
+            self._hover_overlay.position_near(screen_x, screen_y)
             return
         self._last_hover_idx = idx
         self._show_for_idx(idx, screen_x, screen_y)
 
     def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
-        if self._tooltip is None or idx < 0 or idx >= len(self._songs):
+        if self._hover_overlay is None or idx < 0 or idx >= len(self._songs):
             return
         playing = idx == getattr(self, "_current_index", -1)
-        self._tooltip.show_song(self._songs[idx], playing=playing)
+        self._hover_overlay.show_song(self._songs[idx], playing=playing)
         if screen_x is not None and screen_y is not None:
             # The size just changed with the new content; wait a tick so
             # ``outer_size`` reflects the rendered tooltip before clamping.
             self.call_after_refresh(
-                lambda x=screen_x, y=screen_y: self._tooltip.position_near(x, y)
+                lambda x=screen_x, y=screen_y: self._hover_overlay.position_near(x, y)
             )
 
 
