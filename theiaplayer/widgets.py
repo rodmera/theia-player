@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 
 from rich.text import Text
+from textual.containers import Container
 from textual.geometry import Offset
 from textual.widgets import Static
 
@@ -40,12 +41,18 @@ class ClickList(NavList):
                 self.action_select()
 
 
-class SongTooltip(Static):
+class SongTooltip(Container):
     """Floating overlay that surfaces the full song metadata on hover.
 
     Mounted once by ``QueueList`` on the screen; shown/hidden by mouse
     events. Lives on its own layer so it floats above every panel and is
     not clipped by the queue's narrow column.
+
+    Implemented as a ``Container`` with a single ``Static`` child (the
+    ``_label``) rather than subclassing ``Static`` directly, so the
+    per-version ``_content`` attribute on the parent class never shadows
+    the rendered payload. Updating the Static child via ``update()``
+    triggers a layout pass that resizes the floating tooltip correctly.
     """
 
     DEFAULT_CSS = """
@@ -60,12 +67,22 @@ class SongTooltip(Static):
         display: none;
     }
     SongTooltip.-visible { display: block; }
+    SongTooltip > Static {
+        width: auto;
+        height: auto;
+    }
     """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.border_title = "track info"
-        self._content: Text = Text("")
+        self._label: Static | None = None
+
+    def compose(self):
+        yield Static("")
+
+    def on_mount(self) -> None:
+        self._label = self.query_one(Static)
 
     def show_song(self, song: "Song", *, playing: bool = False) -> None:
         """Render and display the tooltip for ``song``.
@@ -73,8 +90,9 @@ class SongTooltip(Static):
         The Static's size is recomputed from the new content so subsequent
         ``position_near`` calls clamp against the real bounding box.
         """
-        self._content = _format_song_tooltip(song, playing=playing)
-        self.update(self._content)
+        if self._label is None:
+            return
+        self._label.update(_format_song_tooltip(song, playing=playing))
         self.add_class("-visible")
 
     def hide(self) -> None:

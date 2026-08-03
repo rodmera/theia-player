@@ -166,8 +166,10 @@ async def test_queue_list_shows_tooltip_when_hover_index_in_range(hover_app):
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
     assert queue._tooltip.has_class("-visible")
-    text_repr = str(queue._tooltip.render())
-    assert "The Boy From Ipanema" in text_repr
+    # The payload lives on the inner Static label (the Container carries the
+    # border / padding, the label carries the rendered text).
+    label_repr = str(queue._tooltip._label.render())
+    assert "The Boy From Ipanema" in label_repr
 
 
 @pytest.mark.asyncio
@@ -198,7 +200,7 @@ async def test_queue_list_set_songs_preserves_hover_when_in_range(hover_app):
     replacement = Song(id="s2", title="Different Track", artist="Other")
     queue.set_songs([replacement])
     assert queue._tooltip.has_class("-visible")
-    assert "Different Track" in str(queue._tooltip.render())
+    assert "Different Track" in str(queue._tooltip._label.render())
 
 
 @pytest.mark.asyncio
@@ -243,3 +245,29 @@ def test_queue_list_preserves_clicklist_bindings():
     assert {"j", "k", "g", "G"}.issubset(keys), (
         f"QueueList lost vim navigation bindings: {keys}"
     )
+
+
+@pytest.mark.asyncio
+async def test_song_tooltip_layout_does_not_crash_on_hover(hover_app):
+    """Regression for the production crash: ``Static._content`` (or any
+    `_content`-named attribute on the textual version installed) was being
+    passed as the tooltip's payload, which made ``visualize`` raise
+    ``VisualError: unable to display 'SongTooltip' type``.
+
+    The fix was to stop subclassing ``Static`` for the tooltip. Instead
+    the tooltip is a ``Container`` with a single ``Static`` child carrying
+    the actual text. This test mounts the real layout pass twice (initial
+    mount + a hover-triggered update) and asserts that neither raise.
+    """
+    pilot, _, queue = hover_app
+    queue.set_songs([_full_song()])
+    # Initial layout pass already happened during on_mount; surface it by
+    # forcing the screen to refresh and then rendering the tooltip.
+    await pilot.pause()
+    queue._tooltip.render()  # would raise VisualError before the fix
+    # Hover pass — this used to swap ``content`` for the widget itself
+    queue._mouse_hovering_over = 0
+    queue._handle_hover(10, 10)
+    await pilot.pause()
+    queue._tooltip.render()  # would raise VisualError on the second pass
+    assert queue._tooltip.has_class("-visible")
