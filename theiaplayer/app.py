@@ -1469,19 +1469,34 @@ class TheIAPlayerApp(KitApp):
             songs: list[Song] = []
             if seed is not None:
                 songs = await self.client.get_similar_songs(seed.id, size=25)
-            
+
             songs = self._apply_filters(songs)
             existing_ids = {s.id for s in self.queue.songs}
             songs = [s for s in songs if s.id not in existing_ids]
 
-            # Fallback to random songs if similar songs yielded 0 new tracks
-            if not songs:
+            # Limit artist repetition relative to current batch and queue
+            songs = self._limit_artist_frequency(songs, max_per_artist=2, queue_songs=self.queue.songs)
+
+            # If similar songs yielded fewer than 10 tracks, top up with random songs for artist variety
+            if len(songs) < 10:
                 rand_songs = await self.client.get_random_songs(size=50)
                 rand_songs = self._apply_filters(rand_songs)
-                songs = [s for s in rand_songs if s.id not in existing_ids][:15]
-                # Secondary fallback if library is small: allow re-playing random songs if queue ran out
-                if not songs and rand_songs:
-                    songs = rand_songs[:15]
+                current_ids = existing_ids | {s.id for s in songs}
+                rand_songs = [s for s in rand_songs if s.id not in current_ids]
+
+                # Filter random songs through artist frequency limits
+                rand_filtered = self._limit_artist_frequency(
+                    rand_songs,
+                    max_per_artist=2,
+                    queue_songs=list(self.queue.songs) + songs,
+                )
+                songs.extend(rand_filtered)
+                songs = songs[:12]
+
+            # Secondary fallback if queue ran out and library is small
+            if not songs and getattr(self, "client", None):
+                rand_songs = await self.client.get_random_songs(size=50)
+                songs = rand_songs[:12]
 
             if songs and self.queue.songs:
                 last_artist = self.queue.songs[-1].artist if self.queue.songs else (seed.artist if seed else None)
@@ -1494,6 +1509,56 @@ class TheIAPlayerApp(KitApp):
             pass
         finally:
             self._autoplay_loading = False
+
+    def _limit_artist_frequency(
+        self,
+        songs: list[Song],
+        max_per_artist: int = 2,
+        queue_songs: list[Song] | None = None,
+    ) -> list[Song]:
+        """Filters candidate songs to limit artist repetition both within the batch and relative to the queue."""
+        if not songs:
+            return []
+
+        # Count existing queue tracks per artist (case-insensitive)
+        queue_counts: dict[str, int] = {}
+        if queue_songs:
+            for s in queue_songs:
+                key = s.artist.lower().strip() if s.artist else ""
+                if key:
+                    queue_counts[key] = queue_counts.get(key, 0) + 1
+
+        batch_counts: dict[str, int] = {}
+        result: list[Song] = []
+
+        for s in songs:
+            key = s.artist.lower().strip() if s.artist else ""
+            q_count = queue_counts.get(key, 0)
+            b_count = batch_counts.get(key, 0)
+
+            # Determine maximum additional tracks allowed for this artist in the batch
+            if q_count >= 3:
+                effective_cap = 0
+            elif q_count >= 1:
+                effective_cap = min(1, max_per_artist)
+            else:
+                effective_cap = max_per_artist
+
+            if b_count < effective_cap:
+                batch_counts[key] = b_count + 1
+                result.append(s)
+
+        # Fallback if strict filtering eliminated everything (e.g., small library / single artist queue)
+        if not result and songs:
+            batch_counts.clear()
+            for s in songs:
+                key = s.artist.lower().strip() if s.artist else ""
+                b_count = batch_counts.get(key, 0)
+                if b_count < max_per_artist:
+                    batch_counts[key] = b_count + 1
+                    result.append(s)
+
+        return result
 
     def _reorder_for_artist_diversity(self, songs: list[Song], last_artist: str | None = None) -> list[Song]:
         if not songs:

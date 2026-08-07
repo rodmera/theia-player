@@ -225,3 +225,14 @@ git merge upstream/main
 # resolver conflictos si los hay, luego:
 git push origin main
 ```
+
+## 🔒 Prevención de colisiones entre agentes
+
+Tres agentes de coding pueden editar este repo (Claude, Pi, Codex). Para evitar pisarse:
+- **Siempre usar el lock antes de empezar a trabajar:**
+  ```python
+  from lock_agent import repo_lock, LockHeld
+  with repo_lock("REPO_PATH") as info:
+      # trabajar aquí
+  ```
+- Si ves `LockHeld`, otro agente ya está trabajando: aborta o coordiná con él.

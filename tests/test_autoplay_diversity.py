@@ -59,3 +59,68 @@ def test_reorder_for_artist_diversity_fallback():
     reordered = TheIAPlayerApp._reorder_for_artist_diversity(None, songs, last_artist="Roxy Music")
     artists = [s.artist for s in reordered]
     assert artists == ["Roxy Music", "Roxy Music"]
+
+
+def test_limit_artist_frequency_caps_batch():
+    candidates = [
+        _song("1", "Travis", "Song 1"),
+        _song("2", "Travis", "Song 2"),
+        _song("3", "Travis", "Song 3"),
+        _song("4", "Travis", "Song 4"),
+        _song("5", "Keane", "Song 5"),
+    ]
+    filtered = TheIAPlayerApp._limit_artist_frequency(None, candidates, max_per_artist=2)
+    travis_count = sum(1 for s in filtered if s.artist == "Travis")
+    assert travis_count == 2
+    assert len(filtered) == 3
+
+
+def test_limit_artist_frequency_considers_queue():
+    queue_songs = [
+        _song("q1", "Travis"),
+        _song("q2", "Travis"),
+    ]
+    candidates = [
+        _song("1", "Travis", "Song 1"),
+        _song("2", "Travis", "Song 2"),
+        _song("3", "Keane", "Song 3"),
+        _song("4", "Blur", "Song 4"),
+    ]
+    filtered = TheIAPlayerApp._limit_artist_frequency(None, candidates, max_per_artist=2, queue_songs=queue_songs)
+    travis_count = sum(1 for s in filtered if s.artist == "Travis")
+    # Queue count = 2, so Travis gets at most 1 additional song in the batch
+    assert travis_count == 1
+
+
+def test_limit_artist_frequency_queue_cap_exceeded():
+    queue_songs = [
+        _song("q1", "Travis"),
+        _song("q2", "Travis"),
+        _song("q3", "Travis"),
+    ]
+    candidates = [
+        _song("1", "Travis", "Song 1"),
+        _song("2", "Keane", "Song 2"),
+    ]
+    filtered = TheIAPlayerApp._limit_artist_frequency(None, candidates, max_per_artist=2, queue_songs=queue_songs)
+    travis_count = sum(1 for s in filtered if s.artist == "Travis")
+    assert travis_count == 0
+    assert len(filtered) == 1
+    assert filtered[0].artist == "Keane"
+
+
+def test_limit_artist_frequency_fallback():
+    queue_songs = [
+        _song("q1", "Travis"),
+        _song("q2", "Travis"),
+        _song("q3", "Travis"),
+    ]
+    candidates = [
+        _song("1", "Travis", "Song 1"),
+        _song("2", "Travis", "Song 2"),
+        _song("3", "Travis", "Song 3"),
+    ]
+    # Small library fallback ensures we still return tracks rather than halting playback completely
+    filtered = TheIAPlayerApp._limit_artist_frequency(None, candidates, max_per_artist=2, queue_songs=queue_songs)
+    assert len(filtered) == 2
+
