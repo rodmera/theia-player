@@ -31,10 +31,9 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 - **a queue that behaves** — shows what's *up next* (played tracks dim out
   above; scroll up for history), add (`a`), play-next (`A`), remove, clear,
   shuffle that keeps the current track, repeat off/all/one; hover any row
-  to see the full song info (album, year, genre, format, bitrate, track,
-  disc, rating, plays, starred) in a floating tooltip — the right column
-  stays narrow; the queue — including your position *inside the current
-  song* — survives a restart
+  in the queue or sidebar to see full song/playlist details (title, genre,
+  duration, song count) in a floating popover — column layout stays narrow;
+  the queue — including your position *inside the current song* — survives a restart
 - **profile switcher** — `ctrl+g` to hop between Navidrome servers (e.g.
   home / work / LAN) in-place, with the queue flushed to avoid cross-track
   bugs

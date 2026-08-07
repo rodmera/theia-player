@@ -41,6 +41,180 @@ class ClickList(NavList):
                 self.action_select()
 
 
+def _format_sidebar_tooltip(title: str, category: str = "", details: str = "") -> Text:
+    """Build the multi-line Rich Text shown inside ``SidebarTooltip``.
+
+    Pure function so unit tests can verify content without spinning up a
+    Textual app.
+    """
+    text = Text()
+
+    # 1) Full Title
+    text.append(_safe(title) or "—", style=f"bold {palette.text}")
+
+    # 2) Category / Subtitle
+    if category:
+        text.append("\n")
+        text.append(_safe(category), style=palette.peach)
+
+    # 3) Details
+    if details:
+        text.append("\n")
+        text.append(_safe(details), style=palette.dim)
+
+    return text
+
+
+class SidebarTooltip(Static):
+    """Floating overlay that surfaces full playlist/sidebar item details on hover.
+
+    Mounted once by ``SidebarList`` on the screen; shown/hidden by mouse
+    events. Lives on its own layer so it floats above every panel and is
+    not clipped by the sidebar's narrow column.
+    """
+
+    DEFAULT_CSS = """
+    SidebarTooltip {
+        layer: _theia_tooltips;
+        background: $panel;
+        border: round $kit-border;
+        padding: 0 2;
+        width: auto;
+        height: auto;
+        max-width: 55;
+        display: none;
+    }
+    SidebarTooltip.-visible { display: block; }
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.border_title = "playlist"
+
+    def show_info(self, title: str, category: str = "", details: str = "", border_title: str = "playlist") -> None:
+        """Render and display the tooltip with playlist / view info."""
+        self.border_title = border_title
+        self.update(_format_sidebar_tooltip(title, category=category, details=details))
+        self.add_class("-visible")
+
+    def hide(self) -> None:
+        self.remove_class("-visible")
+
+    def position_near(self, mouse_x: int, mouse_y: int) -> None:
+        """Pin the tooltip to the cursor, clamped inside the screen."""
+        if not self.has_class("-visible"):
+            return
+        try:
+            screen_w, screen_h = self.screen.size.width, self.screen.size.height
+        except Exception:
+            return
+        tip_w = self.outer_size.width or 35
+        tip_h = self.outer_size.height or 4
+        x = mouse_x + 2
+        y = mouse_y + 1
+        if x + tip_w > screen_w:
+            x = mouse_x - tip_w - 2
+        if y + tip_h > screen_h:
+            y = mouse_y - tip_h - 1
+        self.absolute_offset = Offset(max(0, x), max(0, y))
+
+
+class SidebarList(ClickList):
+    """The sidebar column — a ``ClickList`` that shows a hover tooltip for playlists.
+
+    The left-hand sidebar is narrow, so playlist and genre names get ellipsized.
+    When the mouse hovers over an option in the sidebar, a floating ``SidebarTooltip``
+    appears next to the cursor showing the full playlist name, category, and track count.
+    """
+
+    BINDINGS = ClickList.BINDINGS
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._tooltip_data: dict[str, dict[str, str]] = {}
+        self._hover_overlay: SidebarTooltip | None = None
+        self._last_hover_idx: int | None = None
+
+    def set_tooltip_data(self, data: dict[str, dict[str, str]]) -> None:
+        """Store dictionary mapping option_id -> {title, category, details, border_title}."""
+        self._tooltip_data = dict(data)
+        if self._last_hover_idx is not None:
+            self._show_for_idx(self._last_hover_idx)
+
+    def on_mount(self) -> None:
+        self._hover_overlay = SidebarTooltip()
+        self.screen.mount(self._hover_overlay)
+
+    def on_unmount(self) -> None:
+        if self._hover_overlay is not None:
+            try:
+                self._hover_overlay.remove()
+            except Exception:
+                pass
+            self._hover_overlay = None
+
+    def _on_mouse_move(self, event) -> None:
+        super()._on_mouse_move(event)
+        self._handle_hover(event.screen_x, event.screen_y)
+
+    def _on_leave(self, _) -> None:
+        super()._on_leave(_)
+        self._last_hover_idx = None
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+    def _handle_hover(self, screen_x: int, screen_y: int) -> None:
+        idx = getattr(self, "_mouse_hovering_over", None)
+        if idx is None or idx < 0 or idx >= len(self._options):
+            self._last_hover_idx = None
+            if self._hover_overlay is not None:
+                self._hover_overlay.hide()
+            return
+
+        opt = self._options[idx]
+        if opt.disabled or not opt.id:
+            self._last_hover_idx = None
+            if self._hover_overlay is not None:
+                self._hover_overlay.hide()
+            return
+
+        if idx == self._last_hover_idx and self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
+            self._hover_overlay.position_near(screen_x, screen_y)
+            return
+
+        self._last_hover_idx = idx
+        self._show_for_idx(idx, screen_x, screen_y)
+
+    def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
+        if self._hover_overlay is None or idx < 0 or idx >= len(self._options):
+            return
+
+        opt = self._options[idx]
+        if opt.disabled or not opt.id:
+            self._hover_overlay.hide()
+            return
+
+        info = self._tooltip_data.get(opt.id)
+        if not info and opt.prompt:
+            plain_text = opt.prompt.plain.strip()
+            if plain_text:
+                info = {"title": plain_text, "category": "", "details": "", "border_title": "playlist"}
+
+        if info:
+            self._hover_overlay.show_info(
+                title=info.get("title", ""),
+                category=info.get("category", ""),
+                details=info.get("details", ""),
+                border_title=info.get("border_title", "playlist"),
+            )
+            if screen_x is not None and screen_y is not None:
+                self.call_after_refresh(
+                    lambda x=screen_x, y=screen_y: self._hover_overlay.position_near(x, y) if self._hover_overlay else None
+                )
+        else:
+            self._hover_overlay.hide()
+
+
 class SongTooltip(Static):
     """Floating overlay that surfaces the full song metadata on hover.
 

@@ -40,7 +40,7 @@ from theiaplayer.art import CoverArt
 from theiaplayer.models import Album, Artist, Playlist, Song
 from theiaplayer.playqueue import PlayQueue
 from theiaplayer.screens import InputModal, LyricsModal, OnboardingScreen, SearchModal, PlaylistPickerModal, SpotlightModal
-from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH, QueueList
+from theiaplayer.widgets import ClickList, Logo, NowPlaying, PAUSE_GLYPH, PLAY_GLYPH, QueueList, SidebarList
 
 VIEWS = [
     ("home", "home"),
@@ -235,7 +235,7 @@ class TheIAPlayerApp(KitApp):
             yield Static(id="status")
         with Horizontal(id="main"):
             with Vertical(id="sidebar-panel", classes="panel"):
-                yield ClickList(id="sidebar-list")
+                yield SidebarList(id="sidebar-list")
             yield Splitter("#sidebar-panel", on_resized=self._persist_width, id="split1")
             with Vertical(id="tracks-panel", classes="panel"):
                 yield ClickList(id="tracks-list")
@@ -436,6 +436,18 @@ class TheIAPlayerApp(KitApp):
             if ol.highlighted is not None:
                 highlighted_id = ol.get_option_at_index(ol.highlighted).id
             options: list[Option] = []
+            tooltip_map: dict[str, dict[str, str]] = {}
+
+            view_descriptions = {
+                "home": ("Inicio", "Vista principal", "Panel de inicio y álbum del día"),
+                "all-tracks": ("Todas las canciones", "Biblioteca", "Catálogo completo de canciones"),
+                "recently-added": ("Recientemente agregadas", "Biblioteca", "Últimas canciones añadidas al servidor"),
+                "recently-played": ("Escuchadas recientemente", "Biblioteca", "Historial reciente de reproducción"),
+                "most-played": ("Más escuchadas", "Biblioteca", "Canciones con mayor número de reproducciones"),
+                "starred": ("Favoritas con estrella", "Biblioteca", "Canciones marcadas con estrella"),
+                "shuffle-all": ("Mezclar todo", "Reproducción", "Mezcla aleatoria de toda la biblioteca"),
+            }
+
             for view_id, label in VIEWS:
                 row = Text(no_wrap=True, overflow="ellipsis")
                 glyph, color = ("◍", palette.mauve)
@@ -449,6 +461,14 @@ class TheIAPlayerApp(KitApp):
                 row.append(label, style=palette.text)
                 options.append(Option(row, id=view_id))
 
+                v_title, v_cat, v_desc = view_descriptions.get(view_id, (label, "Vista", ""))
+                tooltip_map[view_id] = {
+                    "title": v_title,
+                    "category": v_cat,
+                    "details": v_desc,
+                    "border_title": "vista",
+                }
+
             # Render Pinned Favorites (Favorites Section)
             state = self.dirs.load_state()
             pins = state.get("pins", [])
@@ -458,23 +478,34 @@ class TheIAPlayerApp(KitApp):
                 for pin in pins:
                     row = Text(no_wrap=True, overflow="ellipsis")
                     glyph = "📌"
+                    pin_type = "Playlist"
                     if pin["id"].startswith("artist:"):
                         glyph = "👤"
+                        pin_type = "Artista"
                     elif pin["id"].startswith("album:"):
                         glyph = "💿"
+                        pin_type = "Álbum"
                     elif pin["id"].startswith("pl:"):
                         glyph = icons.LIST
                     row.append(f" {glyph} ", style=palette.peach)
                     row.append(pin["name"], style=palette.text)
-                    options.append(Option(row, id=f"pin:{pin['id']}"))
+                    pin_option_id = f"pin:{pin['id']}"
+                    options.append(Option(row, id=pin_option_id))
+
+                    tooltip_map[pin_option_id] = {
+                        "title": pin["name"],
+                        "category": f"Favorito · {pin_type}",
+                        "details": "Acceso rápido fijado en la barra lateral",
+                        "border_title": "favorito",
+                    }
 
             # Categorize playlists into Ambientes, Géneros, and Playlists
             mood_keywords = ["lectura", "suave", "nocturna", "work", "focus", "concentración", "chill", "relax", "ambient", "mezcla", "joyas", "80s", "top 50", "agregadas"]
-            
+
             ambientes = []
             generos = []
             others = []
-            
+
             for p in self._playlists:
                 name_l = p.name.lower()
                 if name_l.startswith(("género · ", "genre · ")):
@@ -509,7 +540,17 @@ class TheIAPlayerApp(KitApp):
                     row.append(f" {icon} ", style=palette.sub)
                     row.append(p.name, style=palette.text)
                     row.append(f" {p.song_count}♪", style=palette.vfaint)
-                    options.append(Option(row, id=f"pl:{p.id}"))
+                    pl_option_id = f"pl:{p.id}"
+                    options.append(Option(row, id=pl_option_id))
+
+                    dur_str = anim.fmt_time(p.duration) if getattr(p, "duration", 0) else ""
+                    details_str = f"{p.song_count} canciones" + (f"  ·  {dur_str}" if dur_str else "")
+                    tooltip_map[pl_option_id] = {
+                        "title": p.name,
+                        "category": "Ambiente / Modo",
+                        "details": details_str,
+                        "border_title": "ambiente",
+                    }
 
             # Render Playlists
             if others:
@@ -526,7 +567,16 @@ class TheIAPlayerApp(KitApp):
                             is_collapsed = folder in self._collapsed_folders
                             icon = "📁" if is_collapsed else "📂"
                             folder_row.append(f" {icon} {folder}", style=f"bold {palette.peach}")
-                            options.append(Option(folder_row, id=f"folder:{folder}"))
+                            folder_option_id = f"folder:{folder}"
+                            options.append(Option(folder_row, id=folder_option_id))
+
+                            tooltip_map[folder_option_id] = {
+                                "title": f"Carpeta: {folder}",
+                                "category": "Agrupación de listas",
+                                "details": "Click o enter para colapsar/expandir",
+                                "border_title": "carpeta",
+                            }
+
                         if folder in self._collapsed_folders:
                             continue
                         row.append("   ", style=palette.vfaint)
@@ -538,7 +588,19 @@ class TheIAPlayerApp(KitApp):
                         row.append(f"{icons.LIST} ", style=palette.lav)
                         row.append(p.name, style=palette.text)
                         row.append(f" {p.song_count}♪", style=palette.vfaint)
-                    options.append(Option(row, id=f"pl:{p.id}"))
+
+                    pl_option_id = f"pl:{p.id}"
+                    options.append(Option(row, id=pl_option_id))
+
+                    dur_str = anim.fmt_time(p.duration) if getattr(p, "duration", 0) else ""
+                    details_str = f"{p.song_count} canciones" + (f"  ·  {dur_str}" if dur_str else "")
+                    folder_prefix = f"Carpeta: {folder}" if "/" in p.name else "Playlist"
+                    tooltip_map[pl_option_id] = {
+                        "title": p.name,
+                        "category": folder_prefix,
+                        "details": details_str,
+                        "border_title": "playlist",
+                    }
 
             # Render Géneros
             if generos:
@@ -550,16 +612,34 @@ class TheIAPlayerApp(KitApp):
                     row.append("  🎷 ", style=palette.blue)
                     row.append(clean_name, style=palette.text)
                     row.append(f" {p.song_count}♪", style=palette.vfaint)
-                    options.append(Option(row, id=f"pl:{p.id}"))
+                    pl_option_id = f"pl:{p.id}"
+                    options.append(Option(row, id=pl_option_id))
+
+                    dur_str = anim.fmt_time(p.duration) if getattr(p, "duration", 0) else ""
+                    details_str = f"{p.song_count} canciones" + (f"  ·  {dur_str}" if dur_str else "")
+                    tooltip_map[pl_option_id] = {
+                        "title": clean_name,
+                        "category": "Género musical",
+                        "details": details_str,
+                        "border_title": "género",
+                    }
 
             new_row = Text(no_wrap=True)
             new_row.append(f" {icons.PLUS} ", style=palette.green)
             new_row.append("new playlist", style=palette.sub)
             options.append(Option(new_row, id="pl-new"))
+            tooltip_map["pl-new"] = {
+                "title": "Crear nueva playlist",
+                "category": "Acción",
+                "details": "Añade una nueva lista de reproducción a tu servidor",
+                "border_title": "acción",
+            }
 
             had_focus = ol.has_focus
             ol.clear_options()
             ol.add_options(options)
+            if hasattr(ol, "set_tooltip_data"):
+                ol.set_tooltip_data(tooltip_map)
             self._highlight_view(highlighted_id or self.view)
             if had_focus:
                 ol.focus()
