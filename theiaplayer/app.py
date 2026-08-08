@@ -2165,46 +2165,32 @@ class TheIAPlayerApp(KitApp):
     # ── queue ─────────────────────────────────────────────────────────
     def _render_queue(self) -> None:
         panel = self.query_one("#queue-panel")
-        ol = self.query_one("#queue-list", QueueList)
-        highlighted_idx = ol.highlighted
-
         options = []
         for i, song in enumerate(self.queue.songs):
             row = Text(no_wrap=True, overflow="ellipsis")
-            is_highlighted = (i == highlighted_idx)
-
             if i < self.queue.index:
                 # already played: dim it way down, scroll up to revisit
-                num_style = palette.sub if is_highlighted else palette.vfaint
-                title_style = palette.text if is_highlighted else palette.faint
-                artist_style = palette.sub if is_highlighted else palette.vfaint
-                row.append(f"{i + 1:>2d} ", style=num_style)
-                row.append(song.title, style=title_style)
-                row.append(f"  {song.artist}", style=artist_style)
+                row.append(f"{i + 1:>2d} ", style=palette.dim)
+                row.append(song.title, style=f"bold {palette.sub}")
+                row.append(f"  {song.artist}", style=palette.text)
             elif i == self.queue.index:
                 glyph = PLAY_GLYPH if (self.player and self.player.active and not self.player.paused) else PAUSE_GLYPH
-                title_style = f"bold {palette.blue}"
-                artist_style = palette.sub if is_highlighted else palette.dim
                 row.append(f"{glyph} ", style=palette.green)
-                row.append(song.title, style=title_style)
-                row.append(f"  {song.artist}", style=artist_style)
+                row.append(song.title, style=f"bold {palette.peach}")
+                row.append(f"  {song.artist}", style=palette.text)
             else:
-                num_style = palette.sub if is_highlighted else palette.vfaint
-                title_style = palette.text if is_highlighted else palette.text
-                artist_style = palette.sub if is_highlighted else palette.dim
-                row.append(f"{i + 1:>2d} ", style=num_style)
-                row.append(song.title, style=title_style)
-                row.append(f"  {song.artist}", style=artist_style)
+                row.append(f"{i + 1:>2d} ", style=palette.dim)
+                row.append(song.title, style=f"bold {palette.sub}")
+                row.append(f"  {song.artist}", style=palette.text)
             options.append(Option(row, id=f"q{i}"))
         self._fill("#queue-list", options)
+        ol = self.query_one("#queue-list", QueueList)
         # Bind the song list to the queue widget so the hover tooltip
         # can resolve the row index back to a full Song object.
         ol.set_songs(self.queue.songs, current_index=self.queue.index)
         if options and 0 <= self.queue.index < len(options):
-            if highlighted_idx is None:
+            if ol.highlighted is None:
                 ol.highlighted = self.queue.index
-            else:
-                ol.highlighted = min(highlighted_idx, len(options) - 1)
             # pin the current track to the top so the panel reads "up next";
             # only when the track changes, so manual scrollback isn't fought
             if self.queue.index != self._queue_scrolled_to:
