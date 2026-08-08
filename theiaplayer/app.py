@@ -1207,10 +1207,6 @@ class TheIAPlayerApp(KitApp):
             self.queue.jump(event.option_list.highlighted)
             self._play_current()
 
-    @on(OptionList.OptionHighlighted, "#queue-list")
-    def _queue_highlighted(self, event: OptionList.OptionHighlighted) -> None:
-        self._render_queue()
-
     # ── playback ──────────────────────────────────────────────────────
     def _shuffle_everything(self) -> None:
         if not self._songs:
