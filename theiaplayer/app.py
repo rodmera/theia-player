@@ -2175,13 +2175,13 @@ class TheIAPlayerApp(KitApp):
                 row.append(f"  {song.artist}", style=palette.text)
             elif i == self.queue.index:
                 glyph = PLAY_GLYPH if (self.player and self.player.active and not self.player.paused) else PAUSE_GLYPH
-                row.append(f"{glyph} ", style=palette.green)
+                row.append(f"{glyph} ", style=f"bold {palette.green}")
                 row.append(song.title, style=f"bold {palette.peach}")
-                row.append(f"  {song.artist}", style=palette.text)
+                row.append(f"  {song.artist}", style=f"bold {palette.text}")
             else:
-                row.append(f"{i + 1:>2d} ", style=palette.dim)
-                row.append(song.title, style=f"bold {palette.sub}")
-                row.append(f"  {song.artist}", style=palette.text)
+                row.append(f"{i + 1:>2d} ", style=f"bold {palette.text}")
+                row.append(song.title, style=f"bold {palette.peach}")
+                row.append(f"  {song.artist}", style=f"bold {palette.text}")
             options.append(Option(row, id=f"q{i}"))
         self._fill("#queue-list", options)
         ol = self.query_one("#queue-list", QueueList)
