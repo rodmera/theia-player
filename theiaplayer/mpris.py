@@ -111,13 +111,17 @@ def _define_service(callbacks: dict | None = None):
                     "CanGoPrevious": dbus.Boolean(True),
                     "CanPlay": dbus.Boolean(True),
                     "CanPause": dbus.Boolean(True),
-                    "CanSeek": dbus.Boolean(False),
+                    "CanSeek": dbus.Boolean(True),
                     "CanControl": dbus.Boolean(True),
                 }
             return {}
 
         @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ssv")
         def Set(self, iface: str, prop: str, value) -> None:
+            pass
+
+        @dbus.service.signal(PLAYER_IFACE, signature="x")
+        def Seeked(self, position_microsec: int) -> None:
             pass
 
         @dbus.service.signal(dbus.PROPERTIES_IFACE, signature="sa{sv}as")
@@ -155,6 +159,16 @@ def _define_service(callbacks: dict | None = None):
             if "prev" in self._callbacks:
                 self._callbacks["prev"]()
 
+        @dbus.service.method(PLAYER_IFACE, in_signature="x")
+        def Seek(self, offset_microsec: int) -> None:
+            if "seek" in self._callbacks:
+                self._callbacks["seek"](offset_microsec / 1_000_000.0)
+
+        @dbus.service.method(PLAYER_IFACE, in_signature="ox")
+        def SetPosition(self, track_id: dbus.ObjectPath, position_microsec: int) -> None:
+            if "set_position" in self._callbacks:
+                self._callbacks["set_position"](position_microsec / 1_000_000.0)
+
         # ── state updates (called via GLib.idle_add) ──────────────────────
         def _empty_meta(self) -> dict:
             return {
@@ -170,8 +184,9 @@ def _define_service(callbacks: dict | None = None):
                 self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
 
         def _set_position(self, microsec: int) -> None:
+            if abs(self._position - microsec) > 1_000_000:  # > 1 sec jump
+                self.Seeked(dbus.Int64(microsec))
             self._position = microsec
-            self.PropertiesChanged(PLAYER_IFACE, {"Position": dbus.Int64(microsec)}, [])
 
         def _set_song(self, song: "Song | None", art_url: str = "") -> None:
             if song is None:

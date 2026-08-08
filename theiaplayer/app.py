@@ -294,6 +294,8 @@ class TheIAPlayerApp(KitApp):
             "play_pause": lambda: self._loop.call_soon_threadsafe(self.action_play_pause),
             "next": lambda: self._loop.call_soon_threadsafe(self.action_next_track),
             "prev": lambda: self._loop.call_soon_threadsafe(self.action_prev_track),
+            "seek": lambda offset: self._loop.call_soon_threadsafe(self.action_seek, int(offset)),
+            "set_position": lambda pos: self._loop.call_soon_threadsafe(self.seek_fraction, pos / (self.queue.current.duration if self.queue.current and self.queue.current.duration > 0 else 1.0)),
         }
         self.mpris = mprismod.create(mpris_callbacks)
         self.discord = discord_rpc.create(
@@ -2105,6 +2107,8 @@ class TheIAPlayerApp(KitApp):
             return
         now = self.query_one("#now", NowPlaying)
         now.set_progress(position, duration)
+        if self.mpris is not None:
+            self.mpris.set_position(position)
         if position > 3:
             self._end_failures = 0
         song = self.queue.current
