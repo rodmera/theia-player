@@ -83,3 +83,38 @@ def test_mpris_controller_runs_loop_in_background_thread():
     else:
         # No thread, no service — graceful no-op.
         assert ctrl._thread is None
+
+
+def test_mpris_service_properties_changed():
+    """Verify that _set_song includes PlaybackStatus in PropertiesChanged and _set_status avoids duplicate signals."""
+    if not mpris.MPRIS_AVAILABLE:
+        pytest.skip("dbus-python not installed")
+
+    signals = []
+
+    class MockService:
+        _status = "Stopped"
+        _meta = {}
+
+        def _empty_meta(self):
+            return {}
+
+        def PropertiesChanged(self, iface, changed, invalidated):
+            signals.append((iface, changed))
+
+    svc = MockService()
+    # Execute unbound methods on MockService instance
+    mpris._define_service()._set_status(svc, "Playing")
+    assert len(signals) == 1
+    assert signals[0][1]["PlaybackStatus"] == "Playing"
+
+    # Setting same status should not emit duplicate signal
+    mpris._define_service()._set_status(svc, "Playing")
+    assert len(signals) == 1
+
+    # Setting song emits Metadata and PlaybackStatus
+    mpris._define_service()._set_song(svc, None, "")
+    assert len(signals) == 2
+    assert "PlaybackStatus" in signals[1][1]
+    assert "Metadata" in signals[1][1]
+

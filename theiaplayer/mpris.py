@@ -165,8 +165,9 @@ def _define_service(callbacks: dict | None = None):
             }
 
         def _set_status(self, status: str) -> None:
-            self._status = status
-            self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
+            if self._status != status:
+                self._status = status
+                self.PropertiesChanged(PLAYER_IFACE, {"PlaybackStatus": dbus.String(status)}, [])
 
         def _set_position(self, microsec: int) -> None:
             self._position = microsec
@@ -187,7 +188,14 @@ def _define_service(callbacks: dict | None = None):
                 }
                 if art_url:
                     self._meta["mpris:artUrl"] = dbus.String(art_url)
-            self.PropertiesChanged(PLAYER_IFACE, {"Metadata": dbus.Dictionary(self._meta, signature="sv")}, [])
+            self.PropertiesChanged(
+                PLAYER_IFACE,
+                {
+                    "PlaybackStatus": dbus.String(self._status),
+                    "Metadata": dbus.Dictionary(self._meta, signature="sv"),
+                },
+                [],
+            )
 
     return _MprisService
 

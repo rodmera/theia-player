@@ -2105,8 +2105,6 @@ class TheIAPlayerApp(KitApp):
             return
         now = self.query_one("#now", NowPlaying)
         now.set_progress(position, duration)
-        if self.mpris is not None:
-            self.mpris.set_position(position)
         if position > 3:
             self._end_failures = 0
         song = self.queue.current
