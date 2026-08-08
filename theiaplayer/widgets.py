@@ -396,10 +396,12 @@ class QueueList(ClickList):
     QueueList > .option-list--option-highlighted {
         color: $text;
         background: $kit-cursor;
+        text-style: bold;
     }
     QueueList:focus > .option-list--option-highlighted {
         color: $text;
         background: $kit-cursor;
+        text-style: bold;
     }
     """
 
