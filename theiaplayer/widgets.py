@@ -129,6 +129,17 @@ class SidebarList(ClickList):
 
     BINDINGS = ClickList.BINDINGS
 
+    DEFAULT_CSS = """
+    SidebarList > .option-list--option-highlighted {
+        color: $text;
+        background: $kit-cursor;
+    }
+    SidebarList:focus > .option-list--option-highlighted {
+        color: $text;
+        background: $kit-cursor;
+    }
+    """
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._tooltip_data: dict[str, dict[str, str]] = {}
@@ -381,7 +392,16 @@ class QueueList(ClickList):
     ``Widget._tooltip`` property backing attribute.
     """
 
-    BINDINGS = ClickList.BINDINGS  # preserve j/k/g/G navigation
+    DEFAULT_CSS = """
+    QueueList > .option-list--option-highlighted {
+        color: $text;
+        background: $kit-cursor;
+    }
+    QueueList:focus > .option-list--option-highlighted {
+        color: $text;
+        background: $kit-cursor;
+    }
+    """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
