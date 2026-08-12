@@ -39,3 +39,27 @@ def test_darwin_defaults_to_none_for_coreaudio_fallback():
 def test_empty_string_ao_treated_as_explicit():
     """An explicit empty string is not the same as None — pass through."""
     assert choose_audio_driver("", platform="linux") == ""
+
+from theiaplayer.player import resolve_audio_exclusive
+
+
+def test_audio_exclusive_off_stays_off():
+    assert resolve_audio_exclusive(False, "pipewire") is False
+    assert resolve_audio_exclusive(False, "alsa") is False
+
+
+def test_audio_exclusive_requires_alsa_driver():
+    """Bit-perfect (exclusive) solo es factible sobre hardware ALSA directo."""
+    assert resolve_audio_exclusive(True, "alsa") is True
+    assert resolve_audio_exclusive(True, "alsa/hw:0,0") is True
+
+
+def test_audio_exclusive_neutralized_on_shared_mixer():
+    """pipewire/pulse (mezclador compartido, incl. Bluetooth) no soporta
+    exclusividad — neutraliza para evitar el 'juego silencioso'."""
+    assert resolve_audio_exclusive(True, "pipewire") is False
+    assert resolve_audio_exclusive(True, "pulse") is False
+
+
+def test_audio_exclusive_neutralized_on_no_driver():
+    assert resolve_audio_exclusive(True, None) is False

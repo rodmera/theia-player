@@ -341,6 +341,7 @@ def create_player(
         return NullPlayer()
         
     ao = choose_audio_driver(ao)
+    audio_exclusive = resolve_audio_exclusive(audio_exclusive, ao)
 
     return Player(
         on_position,
@@ -352,6 +353,27 @@ def create_player(
         replaygain_fallback=replaygain_fallback,
         audio_exclusive=audio_exclusive,
     )
+
+
+def resolve_audio_exclusive(audio_exclusive: bool, ao: str | None) -> bool:
+    """Neutraliza ``audio_exclusive`` cuando el driver es un mezclador compartido.
+
+    Bit-perfect (``audio_exclusive=true``) solo es posible sobre hardware ALSA
+    directo (``alsa``, ``alsa/hw:``). Con ``pipewire``/``pulse`` el audio pasa
+    por un mezclador compartido: mpv intenta abrir una interfaz exclusiva que
+    no existe — para Bluetooth (sinks A2DP, que son nodos de software sobre
+    BlueZ) esto produce el "juego silencioso": el reloj avanza pero no sale
+    audio (2026-08-12, iFi Hi-Res por LDAC).
+
+    Devuelve ``False`` si el driver no soporta exclusividad; el valor original
+    en caso contrario. Evita fallar en silencio cuando alguien deja
+    ``audio_exclusive = true`` en el toml con un DAC Bluetooth.
+    """
+    if not audio_exclusive:
+        return False
+    if ao is None or "alsa" not in str(ao).lower():
+        return False
+    return True
 
 def choose_audio_driver(ao: str | None, platform: str | None = None) -> str | None:
     """Pick the mpv ``--ao`` driver to use, given an explicit override.
