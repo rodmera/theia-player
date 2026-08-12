@@ -39,7 +39,13 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
   bugs
 - **audio device switcher** — `ctrl+d` to live-pick the active output
   (laptop speakers, BT DAC, headphones) from `mpv`'s live
-  `audio_device_list`; the choice persists across restarts
+  `audio_device_list`; the choice persists across restarts. The saved
+  device is re-asserted on every track so the stream stays locked to it;
+  if a saved output goes bad (e.g. a BT sink that froze mid-session and
+  makes tracks race ahead with no sound), the player auto-detects 3
+  tracks ending within 1.5s of start and falls back to the default
+  device (`auto`) with an on-screen warning — no manual intervention
+  needed
 - **bit-perfect mode** — `audio_exclusive = true` in `player.toml` opens
   the ALSA hardware path directly, bypassing PipeWire/Pulse mixers for
   fidelity-audophile output
