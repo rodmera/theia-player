@@ -987,6 +987,16 @@ class TheIAPlayerApp(KitApp):
             # Only render the spotlight block when there is actual content to show
             has_content = bool(cached) or bool(spotlight_text)
             if has_content:
+                # Dynamic width calculation based on central column (#tracks-panel) width
+                target_width = 72
+                try:
+                    panel = self.query_one("#tracks-panel")
+                    if panel and panel.size.width > 12:
+                        # Account for panel border (2) + left indentation (2) + scrollbar/right margin (4)
+                        target_width = max(35, panel.size.width - 8)
+                except Exception:
+                    pass
+
                 options.append(Option(Text(""), disabled=True))
                 options.append(Option(Text("  📌 ALBUM SPOTLIGHT   [C] roon credits  ·  [ctrl+s] signal path", style=f"bold {palette.lav}"), disabled=True))
                 options.append(Option(Text(""), disabled=True))
@@ -1014,18 +1024,20 @@ class TheIAPlayerApp(KitApp):
                         options.append(Option(Text(f"  ✍️ Autor:   {composers}", style=f"bold {palette.text}"), disabled=True))
                     if key_musicians and key_musicians != "N/A":
                         options.append(Option(Text(f"  🎷 Músicos: {key_musicians}", style=f"bold {palette.text}"), disabled=True))
-                    options.append(Option(Text(""), disabled=True))
 
-                    import textwrap
-                    for line in textwrap.wrap(trivia, width=62):
-                        options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
+                    if trivia:
+                        options.append(Option(Text(""), disabled=True))
+                        import textwrap
+                        for line in textwrap.wrap(trivia, width=target_width):
+                            options.append(Option(Text(f"  {line}", style=palette.text), disabled=True))
                 elif spotlight_text:
+                    options.append(Option(Text(""), disabled=True))
                     import textwrap
-                    for line in textwrap.wrap(spotlight_text, width=62):
+                    for line in textwrap.wrap(spotlight_text, width=target_width):
                         options.append(Option(Text(f"  {line}", style=palette.dim), disabled=True))
 
                 options.append(Option(Text(""), disabled=True))
-                options.append(Option(Text("  " + "─" * 62, style=palette.faint), disabled=True))
+                options.append(Option(Text("  " + "─" * min(target_width, 140), style=palette.faint), disabled=True))
                 options.append(Option(Text(""), disabled=True))
 
         for s in self._songs:
@@ -2517,6 +2529,12 @@ class TheIAPlayerApp(KitApp):
         else:
             widths[selector] = width
         self.dirs.save_state({"widths": widths})
+        if self.view == "home":
+            self._refresh_song_markers()
+
+    def on_resize(self, event) -> None:
+        if self.view == "home":
+            self._refresh_song_markers()
 
     def _connection_trouble(self, error: Exception) -> None:
         if isinstance(error, SubsonicError):
