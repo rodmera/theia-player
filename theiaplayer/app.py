@@ -957,8 +957,11 @@ class TheIAPlayerApp(KitApp):
             else:
                 existing["status"] = "failed"
                 self.dirs.write_cache(cache_key, existing)
-        except Exception:
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             existing["status"] = "failed"
+            existing["error"] = str(e)
             self.dirs.write_cache(cache_key, existing)
 
     def _render_home_spotlight(self) -> None:
