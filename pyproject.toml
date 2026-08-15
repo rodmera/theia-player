@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "theia-player"
-version = "2.3.9"
+version = "2.3.10"
 description = "A fast, animated TUI player for Navidrome — cover art in the terminal, playback via mpv, themes via ricekit"
 readme = "README.md"
 license = { text = "MIT" }
@@ -25,6 +25,7 @@ dependencies = [
     "python-mpv>=1.0",
     "pillow>=10",
     "textual-image>=0.8",
+    "google-genai>=2.0",
 ]
 
 [project.optional-dependencies]

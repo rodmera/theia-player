@@ -815,13 +815,37 @@ class TheIAPlayerApp(KitApp):
 
                 self._current_spotlight_text = cached.get("trivia", "")
 
-                # Call Gemini if trivia OR credits are missing and status is not "failed"
+                # Call Gemini if trivia OR credits are missing
                 status = cached.get("status", "")
                 has_trivia = bool(cached.get("trivia"))
                 has_credits = any(cached.get(k) and cached.get(k) != "N/A" for k in ("producer", "composers", "key_musicians"))
-                if (not has_trivia or not has_credits) and status != "failed":
+                if not has_trivia or not has_credits:
                     import os
-                    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+                    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+                    if not api_key:
+                        for env_file in (
+                            os.path.expanduser("~/.openclaw/.env"),
+                            os.path.expanduser("~/.openclaw/workspace/.env"),
+                            os.path.expanduser("~/.config/theia-player/.env"),
+                        ):
+                            if os.path.exists(env_file):
+                                try:
+                                    with open(env_file) as ef:
+                                        for line in ef:
+                                            if line.startswith("GEMINI_API_KEY="):
+                                                api_key = line.split("=", 1)[1].strip().strip("\"'")
+                                                os.environ["GEMINI_API_KEY"] = api_key
+                                                break
+                                            elif line.startswith("GOOGLE_API_KEY="):
+                                                api_key = line.split("=", 1)[1].strip().strip("\"'")
+                                                os.environ["GOOGLE_API_KEY"] = api_key
+                                                break
+                                except Exception:
+                                    pass
+                            if api_key:
+                                break
+
+                    if api_key:
                         self._fetch_spotlight_trivia_async(album_id, album_name or "N/A", artist_name or "N/A")
 
                 return songs
@@ -852,7 +876,8 @@ class TheIAPlayerApp(KitApp):
         try:
             def run_gemini():
                 from google import genai
-                client = genai.Client()
+                api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+                client = genai.Client(api_key=api_key) if api_key else genai.Client()
                 prompt = (
                     f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
                     f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
