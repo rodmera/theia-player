@@ -69,3 +69,42 @@ async def test_cover_art_cmyk_to_rgb_conversion(temp_cache_dir):
     with Image.open(re_saved_path) as repaired_img:
         assert repaired_img.mode == "RGB"
         print("Success: Cache auto-repair corrected CMYK to RGB!")
+
+
+def test_cover_art_css_preserves_aspect_ratio():
+    from theiaplayer.art import CoverArt
+    css = CoverArt.DEFAULT_CSS
+    assert "width: auto;" in css
+    assert "height: auto;" in css
+    assert "max-width: 100%;" in css
+    assert "max-height: 100%;" in css
+
+
+@pytest.mark.asyncio
+async def test_cover_art_square_scaling_preserves_dimensions(temp_cache_dir):
+    from textual.app import App, ComposeResult
+    from theiaplayer.art import CoverArt
+
+    img_path = temp_cache_dir / "square_cover.png"
+    Image.new("RGB", (500, 500), (200, 100, 50)).save(img_path)
+
+    class TestApp(App):
+        CSS = """
+        CoverArt { width: 60; height: 15; }
+        """
+        def compose(self) -> ComposeResult:
+            yield CoverArt()
+
+    app = TestApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        art = app.query_one(CoverArt)
+        art.show(img_path, "test_sq")
+        await pilot.pause()
+        assert len(art.children) == 1
+        child = art.children[0]
+        # In a 60 cols x 15 rows container, a square image should bound to height=15 rows (300px)
+        # and take 30 columns (300px) rather than stretching to all 60 columns.
+        assert child.size.width <= 60
+        assert child.size.height <= 15
+        assert child.size.width == 2 * child.size.height
+

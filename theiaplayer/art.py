@@ -71,7 +71,12 @@ class CoverArt(Vertical):
 
     DEFAULT_CSS = """
     CoverArt { align: center middle; }
-    CoverArt > .cover-image { width: 100%; height: 100%; }
+    CoverArt > .cover-image {
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%;
+    }
     CoverArt > #cover-placeholder {
         width: 100%; height: 100%;
         content-align: center middle;

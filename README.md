@@ -27,7 +27,8 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 - **search that queues** — `enter` plays, `a` queues, `A` slots it right
   after the current song
 - **real cover art** — kitty graphics protocol or sixel where available,
-  truecolor half-cells everywhere else (`NAVITUI_ART=auto|tgp|sixel|halfcell|unicode|off`)
+  truecolor half-cells everywhere else (`NAVITUI_ART=auto|tgp|sixel|halfcell|unicode|off`);
+  preserves correct aspect ratio and auto-centers even when resizing the side panel
 - **a queue that behaves** — shows what's *up next* (played tracks dim out
   above; scroll up for history), add (`a`), play-next (`A`), remove, clear,
   shuffle that keeps the current track, repeat off/all/one; hover any row
