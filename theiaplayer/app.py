@@ -13,6 +13,7 @@ progress pulse, marquee, spinners); each tick repaints only a few cells.
 from __future__ import annotations
 
 import asyncio
+import os
 import pathlib
 import random
 import subprocess
@@ -52,6 +53,41 @@ VIEWS = [
     ("shuffle-all", "shuffle everything"),
 ]
 VIEW_LABELS = dict(VIEWS)
+
+
+def get_gemini_api_key() -> str | None:
+    """Resolve GEMINI_API_KEY from process environment or common .env files."""
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if api_key:
+        return api_key
+
+    for env_file in (
+        os.path.expanduser("~/.openclaw/.env"),
+        os.path.expanduser("~/.openclaw/workspace/.env"),
+        os.path.expanduser("~/.config/theia-player/.env"),
+        os.path.expanduser("~/.bashrc"),
+        os.path.expanduser("~/.zshrc"),
+    ):
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, "r", encoding="utf-8", errors="ignore") as ef:
+                    for line in ef:
+                        line = line.strip()
+                        if line.startswith("export "):
+                            line = line[7:].strip()
+                        if line.startswith("GEMINI_API_KEY="):
+                            val = line.split("=", 1)[1].strip().strip("\"'")
+                            if val:
+                                os.environ["GEMINI_API_KEY"] = val
+                                return val
+                        elif line.startswith("GOOGLE_API_KEY="):
+                            val = line.split("=", 1)[1].strip().strip("\"'")
+                            if val:
+                                os.environ["GOOGLE_API_KEY"] = val
+                                return val
+            except Exception:
+                pass
+    return None
 
 HELP_SECTIONS = [
     (
@@ -248,6 +284,7 @@ class TheIAPlayerApp(KitApp):
         yield Footer()
 
     def on_mount(self) -> None:
+        get_gemini_api_key()
         self._loop = asyncio.get_running_loop()  # for mpv-thread callbacks
         state = self.dirs.load_state()
         self._notify_on = state.get("desktop_notifications", self._notify_on)
@@ -816,35 +853,10 @@ class TheIAPlayerApp(KitApp):
                 self._current_spotlight_text = cached.get("trivia", "")
 
                 # Call Gemini if trivia OR credits are missing
-                status = cached.get("status", "")
                 has_trivia = bool(cached.get("trivia"))
                 has_credits = any(cached.get(k) and cached.get(k) != "N/A" for k in ("producer", "composers", "key_musicians"))
                 if not has_trivia or not has_credits:
-                    import os
-                    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-                    if not api_key:
-                        for env_file in (
-                            os.path.expanduser("~/.openclaw/.env"),
-                            os.path.expanduser("~/.openclaw/workspace/.env"),
-                            os.path.expanduser("~/.config/theia-player/.env"),
-                        ):
-                            if os.path.exists(env_file):
-                                try:
-                                    with open(env_file) as ef:
-                                        for line in ef:
-                                            if line.startswith("GEMINI_API_KEY="):
-                                                api_key = line.split("=", 1)[1].strip().strip("\"'")
-                                                os.environ["GEMINI_API_KEY"] = api_key
-                                                break
-                                            elif line.startswith("GOOGLE_API_KEY="):
-                                                api_key = line.split("=", 1)[1].strip().strip("\"'")
-                                                os.environ["GOOGLE_API_KEY"] = api_key
-                                                break
-                                except Exception:
-                                    pass
-                            if api_key:
-                                break
-
+                    api_key = get_gemini_api_key()
                     if api_key:
                         self._fetch_spotlight_trivia_async(album_id, album_name or "N/A", artist_name or "N/A")
 
@@ -876,8 +888,10 @@ class TheIAPlayerApp(KitApp):
         try:
             def run_gemini():
                 from google import genai
-                api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-                client = genai.Client(api_key=api_key) if api_key else genai.Client()
+                api_key = get_gemini_api_key()
+                if not api_key:
+                    raise ValueError("No Gemini API key available")
+                client = genai.Client(api_key=api_key)
                 prompt = (
                     f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
                     f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
@@ -1007,7 +1021,7 @@ class TheIAPlayerApp(KitApp):
                     year = cached.get("year", "N/A")
                     label = cached.get("label", "N/A")
                     genre = cached.get("genre", "N/A")
-                    trivia = cached.get("trivia", cached.get("text", ""))
+                    trivia = cached.get("trivia") or cached.get("text") or spotlight_text or ""
 
                     producer = cached.get("producer")
                     composers = cached.get("composers")
@@ -1862,7 +1876,7 @@ class TheIAPlayerApp(KitApp):
             producer = cached.get("producer", "N/A")
             composers = cached.get("composers", "N/A")
             key_musicians = cached.get("key_musicians", "N/A")
-            trivia = cached.get("trivia", cached.get("text", ""))
+            trivia = cached.get("trivia") or cached.get("text") or getattr(self, "_current_spotlight_text", "") or ""
             booklet_text = cached.get("booklet_notes", "")
 
             # Parse individual collaborators categorized by role for relational search
