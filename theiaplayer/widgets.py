@@ -124,8 +124,11 @@ class SidebarList(ClickList):
 
     The left-hand sidebar is narrow, so playlist and genre names get ellipsized.
     When the mouse hovers over an option in the sidebar, a floating ``SidebarTooltip``
-    appears next to the cursor showing the full playlist name, category, and track count.
+    appears next to the cursor showing the full playlist name, category, and track count
+    after a deliberate hover pause (450ms).
     """
+
+    HOVER_DELAY = 0.45
 
     BINDINGS = ClickList.BINDINGS
 
@@ -145,11 +148,20 @@ class SidebarList(ClickList):
         self._tooltip_data: dict[str, dict[str, str]] = {}
         self._hover_overlay: SidebarTooltip | None = None
         self._last_hover_idx: int | None = None
+        self._hover_timer = None
+
+    def _cancel_hover_timer(self) -> None:
+        if self._hover_timer is not None:
+            try:
+                self._hover_timer.stop()
+            except Exception:
+                pass
+            self._hover_timer = None
 
     def set_tooltip_data(self, data: dict[str, dict[str, str]]) -> None:
         """Store dictionary mapping option_id -> {title, category, details, border_title}."""
         self._tooltip_data = dict(data)
-        if self._last_hover_idx is not None:
+        if self._last_hover_idx is not None and self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
             self._show_for_idx(self._last_hover_idx)
 
     def on_mount(self) -> None:
@@ -157,6 +169,7 @@ class SidebarList(ClickList):
         self.screen.mount(self._hover_overlay)
 
     def on_unmount(self) -> None:
+        self._cancel_hover_timer()
         if self._hover_overlay is not None:
             try:
                 self._hover_overlay.remove()
@@ -170,6 +183,7 @@ class SidebarList(ClickList):
 
     def _on_leave(self, _) -> None:
         super()._on_leave(_)
+        self._cancel_hover_timer()
         self._last_hover_idx = None
         if self._hover_overlay is not None:
             self._hover_overlay.hide()
@@ -177,6 +191,7 @@ class SidebarList(ClickList):
     def _handle_hover(self, screen_x: int, screen_y: int) -> None:
         idx = getattr(self, "_mouse_hovering_over", None)
         if idx is None or idx < 0 or idx >= len(self._options):
+            self._cancel_hover_timer()
             self._last_hover_idx = None
             if self._hover_overlay is not None:
                 self._hover_overlay.hide()
@@ -184,17 +199,31 @@ class SidebarList(ClickList):
 
         opt = self._options[idx]
         if opt.disabled or not opt.id:
+            self._cancel_hover_timer()
             self._last_hover_idx = None
             if self._hover_overlay is not None:
                 self._hover_overlay.hide()
             return
 
-        if idx == self._last_hover_idx and self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
-            self._hover_overlay.position_near(screen_x, screen_y)
+        # Si el cursor sigue moviéndose dentro de la misma fila:
+        if idx == self._last_hover_idx:
+            if self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
+                self._hover_overlay.position_near(screen_x, screen_y)
             return
 
+        # Al cambiar a una NUEVA fila: ocultar inmediatamente y esperar la pausa de hover (450ms)
         self._last_hover_idx = idx
-        self._show_for_idx(idx, screen_x, screen_y)
+        self._cancel_hover_timer()
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+        try:
+            self._hover_timer = self.set_timer(
+                self.HOVER_DELAY,
+                lambda i=idx, x=screen_x, y=screen_y: self._show_for_idx(i, x, y),
+            )
+        except Exception:
+            self._show_for_idx(idx, screen_x, screen_y)
 
     def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
         if self._hover_overlay is None or idx < 0 or idx >= len(self._options):
@@ -385,14 +414,14 @@ class QueueList(ClickList):
     click behavior and adds: when the mouse rests on a row, a floating
     ``SongTooltip`` with the full metadata (title, artist, album, year,
     genre, duration, format, bitrate, track, disc, rating, plays, starred)
-    appears next to the cursor after a brief hover delay.
+    appears next to the cursor after a deliberate hover pause (450ms).
 
     Note: The overlay widget is stored in ``self._hover_overlay`` (NOT
     ``self._tooltip``) to avoid colliding with Textual's reserved
     ``Widget._tooltip`` property backing attribute.
     """
 
-    HOVER_DELAY = 0.35
+    HOVER_DELAY = 0.45
 
     DEFAULT_CSS = """
     QueueList > .option-list--option-highlighted {
@@ -437,7 +466,8 @@ class QueueList(ClickList):
                 self._hover_overlay.hide()
             return
         # Song at the same index may have changed (re-render with new order)
-        self._show_for_idx(self._last_hover_idx)
+        if self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
+            self._show_for_idx(self._last_hover_idx)
 
     # ── lifecycle ───────────────────────────────────────────────────────
 
@@ -479,26 +509,25 @@ class QueueList(ClickList):
             if self._hover_overlay is not None:
                 self._hover_overlay.hide()
             return
-        if idx == self._last_hover_idx and self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
-            # Same row, but the cursor moved inside it — keep it pinned to the cursor.
-            self._hover_overlay.position_near(screen_x, screen_y)
+        if idx == self._last_hover_idx:
+            # Same row, but the cursor moved inside it — keep it pinned to the cursor if visible.
+            if self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
+                self._hover_overlay.position_near(screen_x, screen_y)
             return
-        self._last_hover_idx = idx
 
-        # Si el tooltip ya está visible, actualizar de inmediato;
-        # si está cerrado, esperar delay de intención de hover (350ms)
-        if self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
-            self._cancel_hover_timer()
+        # Al cambiar a una NUEVA fila: ocultar inmediatamente y esperar la pausa de hover (450ms)
+        self._last_hover_idx = idx
+        self._cancel_hover_timer()
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+        try:
+            self._hover_timer = self.set_timer(
+                self.HOVER_DELAY,
+                lambda i=idx, x=screen_x, y=screen_y: self._show_for_idx(i, x, y),
+            )
+        except Exception:
             self._show_for_idx(idx, screen_x, screen_y)
-        else:
-            self._cancel_hover_timer()
-            try:
-                self._hover_timer = self.set_timer(
-                    self.HOVER_DELAY,
-                    lambda i=idx, x=screen_x, y=screen_y: self._show_for_idx(i, x, y),
-                )
-            except Exception:
-                self._show_for_idx(idx, screen_x, screen_y)
 
     def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
         if self._hover_overlay is None or idx < 0 or idx >= len(self._songs):
