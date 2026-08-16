@@ -11,9 +11,11 @@ from __future__ import annotations
 # land before any consumer of textual_image (e.g. theiaplayer.art).
 from theiaplayer import terminal_probe  # noqa: F401
 
-__version__ = "2.3.19"
+__version__ = "2.3.20"
 
 def main() -> None:
-    from theiaplayer.app import main as run
-
-    run()
+    try:
+        from theiaplayer.app import main as run
+        run()
+    except (KeyboardInterrupt, SystemExit):
+        pass

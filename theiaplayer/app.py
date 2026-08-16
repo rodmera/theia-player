@@ -2733,6 +2733,8 @@ def main() -> None:
         # Ejecutar la aplicacion
         TheIAPlayerApp().run()
         
+    except (KeyboardInterrupt, SystemExit):
+        sys.exit(0)
     except Exception as e:
         # CAPTURAR CUALQUIER EXCEPCIÓN DEL ARRANQUE Y GUARDARLA AL LOG
         try:
