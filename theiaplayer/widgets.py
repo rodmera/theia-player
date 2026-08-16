@@ -125,10 +125,10 @@ class SidebarList(ClickList):
     The left-hand sidebar is narrow, so playlist and genre names get ellipsized.
     When the mouse hovers over an option in the sidebar, a floating ``SidebarTooltip``
     appears next to the cursor showing the full playlist name, category, and track count
-    after a deliberate hover pause (450ms).
+    after a deliberate hover pause (1.0s).
     """
 
-    HOVER_DELAY = 0.45
+    HOVER_DELAY = 1.0
 
     BINDINGS = ClickList.BINDINGS
 
@@ -414,14 +414,14 @@ class QueueList(ClickList):
     click behavior and adds: when the mouse rests on a row, a floating
     ``SongTooltip`` with the full metadata (title, artist, album, year,
     genre, duration, format, bitrate, track, disc, rating, plays, starred)
-    appears next to the cursor after a deliberate hover pause (450ms).
+    appears next to the cursor after a deliberate hover pause (1.0s).
 
     Note: The overlay widget is stored in ``self._hover_overlay`` (NOT
     ``self._tooltip``) to avoid colliding with Textual's reserved
     ``Widget._tooltip`` property backing attribute.
     """
 
-    HOVER_DELAY = 0.45
+    HOVER_DELAY = 1.0
 
     DEFAULT_CSS = """
     QueueList > .option-list--option-highlighted {
