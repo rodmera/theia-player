@@ -2589,6 +2589,10 @@ class TheIAPlayerApp(KitApp):
                 pass
         self.exit()
 
+    def on_unmount(self) -> None:
+        if self.mpris is not None:
+            self.mpris.stop()
+
     def _get_cached_audio_path(self, song: Song) -> pathlib.Path:
         import pathlib
         return self._audio_cache_dir / f"{song.id}.{song.suffix or 'mp3'}"

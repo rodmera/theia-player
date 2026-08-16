@@ -236,6 +236,7 @@ class MprisController:
         self._pending_status: str | None = None
         self._pending_position: int | None = None
         self._closing = False
+        self._ready_event = threading.Event()
 
     def start(self) -> None:
         if not MPRIS_AVAILABLE:
@@ -243,6 +244,7 @@ class MprisController:
         # Lanzar la inicialización y el loop de D-Bus de forma asíncrona en un hilo de fondo
         # Esto independiza por completo el arranque del hilo principal de Textual, eliminando todo riesgo de congelamientos.
         self._closing = False
+        self._ready_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
@@ -264,14 +266,18 @@ class MprisController:
                 self._svc._set_position(self._pending_position)
 
             self._loop = GLib.MainLoop()
+            self._ready_event.set()
             if not self._closing:
                 self._loop.run()
         except Exception:
             self._svc = None
             self._loop = None
+        finally:
+            self._ready_event.set()
 
     def stop(self) -> None:
         self._closing = True
+        self._ready_event.wait(timeout=0.2)
         if self._loop is not None:
             try:
                 self._loop.quit()
