@@ -443,6 +443,7 @@ class TheIAPlayerApp(KitApp):
         # Load the cover art of the restored song on startup (now that client is ready)
         if self.queue.current and self.queue.current.cover_art:
             self._load_art(self.queue.current.cover_art, f"song-{self.queue.current.id}")
+        self._prefetch_upcoming_spotlights()
 
     def _render_status(self) -> None:
         if self.client is None:
@@ -983,6 +984,92 @@ class TheIAPlayerApp(KitApp):
     def _render_home_spotlight(self) -> None:
         self._show_songs(self._songs, "home · spotlight")
 
+    def _prefetch_upcoming_spotlights(self) -> None:
+        """Pro-actively prefetch and cache Spotlight reviews for upcoming albums in queue."""
+        if not hasattr(self, "queue") or not self.queue or not getattr(self.queue, "_songs", None):
+            return
+
+        api_key = get_gemini_api_key()
+        if not api_key:
+            return
+
+        curr_idx = getattr(self.queue, "_index", 0)
+        upcoming = self.queue._songs[curr_idx + 1 : curr_idx + 4]
+        seen_albums = set()
+
+        curr_album = self.queue.current.album_id if (self.queue and self.queue.current) else None
+        if curr_album:
+            seen_albums.add(curr_album)
+
+        for s in upcoming:
+            if s.album_id and s.album_id not in seen_albums:
+                seen_albums.add(s.album_id)
+                cached = self.dirs.read_cache(f"spotlight-{s.album_id}")
+                if not cached or not cached.get("trivia") or not cached.get("producer") or cached.get("status") == "failed":
+                    self._prefetch_single_spotlight_async(s.album_id, s.album or "N/A", s.artist or "N/A")
+
+    @work(group="spotlight_prefetch")
+    async def _prefetch_single_spotlight_async(self, album_id: str, album_name: str, artist_name: str) -> None:
+        if not hasattr(self, "_active_spotlight_prefetches"):
+            self._active_spotlight_prefetches = set()
+        if album_id in self._active_spotlight_prefetches:
+            return
+        self._active_spotlight_prefetches.add(album_id)
+        cache_key = f"spotlight-{album_id}"
+        try:
+            def run_gemini():
+                from google import genai
+                api_key = get_gemini_api_key()
+                if not api_key:
+                    return None
+                client = genai.Client(api_key=api_key)
+                prompt = (
+                    f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
+                    f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
+                    f"{{\n"
+                    f"  \"album\": \"Nombre del álbum\",\n"
+                    f"  \"artist\": \"Nombre del artista\",\n"
+                    f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
+                    f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
+                    f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
+                    f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
+                    f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
+                    f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
+                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\",\n"
+                    f"  \"booklet_notes\": \"Notas extendidas estilo cuadernillo digital (Liner Notes), incluyendo detalles musicales pista por pista o contexto histórico en 2-3 párrafos detallados.\"\n"
+                    f"}}\n"
+                    f"Sé sumamente preciso y verídico históricamente en los datos."
+                )
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=prompt
+                )
+                return response.text.strip()
+
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(None, run_gemini)
+            if text:
+                import json
+                cleaned_text = text.strip()
+                if cleaned_text.startswith("```"):
+                    lines_text = cleaned_text.splitlines()
+                    if lines_text[0].startswith("```"):
+                        lines_text = lines_text[1:]
+                    if lines_text[-1].startswith("```"):
+                        lines_text = lines_text[:-1]
+                    cleaned_text = "\n".join(lines_text).strip()
+
+                try:
+                    data = json.loads(cleaned_text)
+                    data["status"] = "cached"
+                    self.dirs.write_cache(cache_key, data)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        finally:
+            self._active_spotlight_prefetches.discard(album_id)
+
     @work(exclusive=True, group="songs")
     async def _play_view_from_top(self, view_id: str) -> None:
         self.notify("loading playlist…", timeout=2)
@@ -1361,6 +1448,7 @@ class TheIAPlayerApp(KitApp):
         self._send_notification(song)
         self._update_discord(song)
         self._check_autoplay()
+        self._prefetch_upcoming_spotlights()
 
     def _refresh_song_markers(self) -> None:
         """Re-render the tracks pane so the ♪ marker follows the player."""
