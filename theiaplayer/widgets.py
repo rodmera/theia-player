@@ -188,6 +188,19 @@ class SidebarList(ClickList):
         if self._hover_overlay is not None:
             self._hover_overlay.hide()
 
+    def _on_blur(self, event) -> None:
+        super()._on_blur(event)
+        self._cancel_hover_timer()
+        self._last_hover_idx = None
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+    def on_app_blur(self, _) -> None:
+        self._cancel_hover_timer()
+        self._last_hover_idx = None
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
     def _handle_hover(self, screen_x: int, screen_y: int) -> None:
         idx = getattr(self, "_mouse_hovering_over", None)
         if idx is None or idx < 0 or idx >= len(self._options):
@@ -494,6 +507,19 @@ class QueueList(ClickList):
 
     def _on_leave(self, _) -> None:
         super()._on_leave(_)
+        self._cancel_hover_timer()
+        self._last_hover_idx = None
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+    def _on_blur(self, event) -> None:
+        super()._on_blur(event)
+        self._cancel_hover_timer()
+        self._last_hover_idx = None
+        if self._hover_overlay is not None:
+            self._hover_overlay.hide()
+
+    def on_app_blur(self, _) -> None:
         self._cancel_hover_timer()
         self._last_hover_idx = None
         if self._hover_overlay is not None:

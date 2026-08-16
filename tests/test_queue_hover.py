@@ -351,3 +351,22 @@ async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     except VisualError as e:
         pytest.fail(f"visualize() rejected the tooltip payload: {e}")
     assert "The Boy From Ipanema" in str(payload)
+
+
+@pytest.mark.asyncio
+async def test_queue_list_on_app_blur_hides_tooltip(hover_app):
+    """When the window or widget loses focus (AppBlur / Blur), tooltip must hide immediately."""
+    from textual import events
+
+    pilot, app, queue = hover_app
+    queue.set_songs([_full_song()])
+    queue._mouse_hovering_over = 0
+    queue._handle_hover(10, 10)
+    await pilot.pause(1.1)
+    assert queue._hover_overlay.has_class("-visible")
+
+    # Post AppBlur
+    queue.post_message(events.AppBlur())
+    await pilot.pause(0.1)
+    assert not queue._hover_overlay.has_class("-visible")
+    assert queue._last_hover_idx is None

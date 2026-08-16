@@ -2593,6 +2593,25 @@ class TheIAPlayerApp(KitApp):
         if self.mpris is not None:
             self.mpris.stop()
 
+    def on_app_blur(self, _) -> None:
+        """Hide all floating tooltips when the terminal window loses focus."""
+        try:
+            sidebar = self.query_one("#sidebar-list", SidebarList)
+            sidebar._cancel_hover_timer()
+            sidebar._last_hover_idx = None
+            if sidebar._hover_overlay is not None:
+                sidebar._hover_overlay.hide()
+        except Exception:
+            pass
+        try:
+            queue = self.query_one("#queue-list", QueueList)
+            queue._cancel_hover_timer()
+            queue._last_hover_idx = None
+            if queue._hover_overlay is not None:
+                queue._hover_overlay.hide()
+        except Exception:
+            pass
+
     def _get_cached_audio_path(self, song: Song) -> pathlib.Path:
         import pathlib
         return self._audio_cache_dir / f"{song.id}.{song.suffix or 'mp3'}"
