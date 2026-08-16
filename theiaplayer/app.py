@@ -1020,15 +1020,15 @@ class TheIAPlayerApp(KitApp):
 
     def _prefetch_upcoming_spotlights(self) -> None:
         """Pro-actively prefetch and cache Spotlight reviews for upcoming albums in queue."""
-        if not hasattr(self, "queue") or not self.queue or not getattr(self.queue, "_songs", None):
+        if not hasattr(self, "queue") or not self.queue or not self.queue.songs:
             return
 
         api_key = get_gemini_api_key()
         if not api_key:
             return
 
-        curr_idx = getattr(self.queue, "_index", 0)
-        upcoming = self.queue._songs[curr_idx + 1 : curr_idx + 4]
+        curr_idx = getattr(self.queue, "index", 0)
+        upcoming = self.queue.songs[curr_idx + 1 : curr_idx + 6]
         seen_albums = set()
 
         curr_album = self.queue.current.album_id if (self.queue and self.queue.current) else None
@@ -1097,6 +1097,11 @@ class TheIAPlayerApp(KitApp):
                     data = json.loads(cleaned_text)
                     data["status"] = "cached"
                     self._write_spotlight(album_id, data)
+                    
+                    if getattr(self, "_current_spotlight_album_id", None) == album_id:
+                        self._current_spotlight_text = data.get("trivia", "")
+                        if self.view == "home":
+                            self._render_home_spotlight()
                 except Exception:
                     pass
         except Exception:
