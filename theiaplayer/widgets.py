@@ -385,12 +385,14 @@ class QueueList(ClickList):
     click behavior and adds: when the mouse rests on a row, a floating
     ``SongTooltip`` with the full metadata (title, artist, album, year,
     genre, duration, format, bitrate, track, disc, rating, plays, starred)
-    appears next to the cursor and updates live as it moves between rows.
+    appears next to the cursor after a brief hover delay.
 
     Note: The overlay widget is stored in ``self._hover_overlay`` (NOT
     ``self._tooltip``) to avoid colliding with Textual's reserved
     ``Widget._tooltip`` property backing attribute.
     """
+
+    HOVER_DELAY = 0.35
 
     DEFAULT_CSS = """
     QueueList > .option-list--option-highlighted {
@@ -410,6 +412,15 @@ class QueueList(ClickList):
         self._songs: list[Song] = []
         self._hover_overlay: SongTooltip | None = None
         self._last_hover_idx: int | None = None
+        self._hover_timer = None
+
+    def _cancel_hover_timer(self) -> None:
+        if self._hover_timer is not None:
+            try:
+                self._hover_timer.stop()
+            except Exception:
+                pass
+            self._hover_timer = None
 
     # ── song list management (called by the app on every queue render) ──
 
@@ -420,6 +431,7 @@ class QueueList(ClickList):
         self._current_index = current_index
         if self._last_hover_idx is None or self._last_hover_idx >= len(self._songs):
             # The hovered row no longer exists (queue cleared, row removed)
+            self._cancel_hover_timer()
             self._last_hover_idx = None
             if self._hover_overlay is not None:
                 self._hover_overlay.hide()
@@ -436,6 +448,7 @@ class QueueList(ClickList):
         self.screen.mount(self._hover_overlay)
 
     def on_unmount(self) -> None:
+        self._cancel_hover_timer()
         if self._hover_overlay is not None:
             try:
                 self._hover_overlay.remove()
@@ -451,6 +464,7 @@ class QueueList(ClickList):
 
     def _on_leave(self, _) -> None:
         super()._on_leave(_)
+        self._cancel_hover_timer()
         self._last_hover_idx = None
         if self._hover_overlay is not None:
             self._hover_overlay.hide()
@@ -460,6 +474,7 @@ class QueueList(ClickList):
     def _handle_hover(self, screen_x: int, screen_y: int) -> None:
         idx = getattr(self, "_mouse_hovering_over", None)
         if idx is None or idx < 0 or idx >= len(self._songs):
+            self._cancel_hover_timer()
             self._last_hover_idx = None
             if self._hover_overlay is not None:
                 self._hover_overlay.hide()
@@ -469,7 +484,21 @@ class QueueList(ClickList):
             self._hover_overlay.position_near(screen_x, screen_y)
             return
         self._last_hover_idx = idx
-        self._show_for_idx(idx, screen_x, screen_y)
+
+        # Si el tooltip ya está visible, actualizar de inmediato;
+        # si está cerrado, esperar delay de intención de hover (350ms)
+        if self._hover_overlay is not None and self._hover_overlay.has_class("-visible"):
+            self._cancel_hover_timer()
+            self._show_for_idx(idx, screen_x, screen_y)
+        else:
+            self._cancel_hover_timer()
+            try:
+                self._hover_timer = self.set_timer(
+                    self.HOVER_DELAY,
+                    lambda i=idx, x=screen_x, y=screen_y: self._show_for_idx(i, x, y),
+                )
+            except Exception:
+                self._show_for_idx(idx, screen_x, screen_y)
 
     def _show_for_idx(self, idx: int, screen_x: int | None = None, screen_y: int | None = None) -> None:
         if self._hover_overlay is None or idx < 0 or idx >= len(self._songs):

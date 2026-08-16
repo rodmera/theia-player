@@ -202,11 +202,15 @@ async def test_queue_list_mounts_song_tooltip_on_screen(hover_app):
 
 @pytest.mark.asyncio
 async def test_queue_list_shows_tooltip_when_hover_index_in_range(hover_app):
-    _, _, queue = hover_app
+    pilot, _, queue = hover_app
     queue.set_songs([_full_song(), Song(id="s2", title="Second")])
     # Simulate the OptionList state where the mouse is on row 0
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
+    # Immediately after move, hover delay prevents instant popup
+    assert not queue._hover_overlay.has_class("-visible")
+    # After hover delay (350ms), tooltip becomes visible
+    await pilot.pause(0.4)
     assert queue._hover_overlay.has_class("-visible")
     # The payload lives on the inner Static label (the Container carries the
     # border / padding, the label carries the rendered text).
@@ -216,10 +220,11 @@ async def test_queue_list_shows_tooltip_when_hover_index_in_range(hover_app):
 
 @pytest.mark.asyncio
 async def test_queue_list_hides_tooltip_when_index_out_of_range(hover_app):
-    _, _, queue = hover_app
+    pilot, _, queue = hover_app
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
+    await pilot.pause(0.4)
     assert queue._hover_overlay.has_class("-visible")
 
     # Now the queue shrinks: index 0 is gone
@@ -233,10 +238,11 @@ async def test_queue_list_set_songs_preserves_hover_when_in_range(hover_app):
     """A re-render that keeps the same length must not hide the tooltip —
     the cursor is still on the same row, even if the song at that row
     changed (shuffle, reorder)."""
-    _, _, queue = hover_app
+    pilot, _, queue = hover_app
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
+    await pilot.pause(0.4)
     assert queue._hover_overlay.has_class("-visible")
 
     replacement = Song(id="s2", title="Different Track", artist="Other")
@@ -249,10 +255,11 @@ async def test_queue_list_set_songs_preserves_hover_when_in_range(hover_app):
 async def test_queue_list_handle_hover_hides_on_invalid_index(hover_app):
     """If the queue is cleared while the cursor is on a row, the next
     mouse move (with no valid index) must hide the tooltip."""
-    _, _, queue = hover_app
+    pilot, _, queue = hover_app
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
+    await pilot.pause(0.4)
     assert queue._hover_overlay.has_class("-visible")
 
     # Simulate OptionList clearing the hover state on clear_options
@@ -265,15 +272,16 @@ async def test_queue_list_handle_hover_hides_on_invalid_index(hover_app):
 async def test_queue_list_on_leave_hides_tooltip(hover_app):
     from textual.events import Leave
 
-    _, _, queue = hover_app
+    pilot, _, queue = hover_app
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
+    await pilot.pause(0.4)
     assert queue._hover_overlay.has_class("-visible")
 
     # Dispatch a synthetic leave event
     queue.post_message(Leave(queue))
-    await hover_app[0].pause()
+    await pilot.pause(0.1)
     assert not queue._hover_overlay.has_class("-visible")
     assert queue._last_hover_idx is None
 
@@ -330,7 +338,7 @@ async def test_song_tooltip_render_returns_valid_renderable(hover_app):
     queue.set_songs([_full_song()])
     queue._mouse_hovering_over = 0
     queue._handle_hover(10, 10)
-    await pilot.pause()
+    await pilot.pause(0.4)
 
     payload = queue._hover_overlay.render()
     assert isinstance(payload, (Text, Content)), (
