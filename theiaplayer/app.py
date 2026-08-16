@@ -342,6 +342,14 @@ class TheIAPlayerApp(KitApp):
         now = self.query_one("#now", NowPlaying)
         now.volume = self.player.volume
 
+        if self.client is None:
+            config = self.dirs.load_config()
+            if all(config.get(k) for k in ("server", "username", "token", "salt")):
+                self.client = SubsonicClient(
+                    config["server"], config["username"], config["token"], config["salt"],
+                    art_dir=self.dirs.cache_dir / "art",
+                )
+
         # restore the queue exactly as it was left
         cached_queue = self.dirs.read_cache("queue")
         if cached_queue:
@@ -350,6 +358,10 @@ class TheIAPlayerApp(KitApp):
             now.set_song(self.queue.current)
             now.set_progress(self._resume_position, self.queue.current.duration if self.queue.current else 0)
             now._title_flash = 0
+            if self.mpris is not None and self.queue.current is not None:
+                art_path = self.client.cached_art(self.queue.current.cover_art) if (self.client and self.queue.current.cover_art) else None
+                self.mpris.set_song(self.queue.current, str(art_path) if art_path else "")
+                self.mpris.set_stopped()
         now.shuffle = self.queue.shuffle
         now.repeat = self.queue.repeat
         self._render_queue()
@@ -362,12 +374,7 @@ class TheIAPlayerApp(KitApp):
 
         if self.client is None:
             config = self.dirs.load_config()
-            if all(config.get(k) for k in ("server", "username", "token", "salt")):
-                self.client = SubsonicClient(
-                    config["server"], config["username"], config["token"], config["salt"],
-                    art_dir=self.dirs.cache_dir / "art",
-                )
-            else:
+            if not all(config.get(k) for k in ("server", "username", "token", "salt")):
                 self.push_screen(
                     OnboardingScreen(config.get("server", ""), config.get("username", "")),
                     self._onboarded,

@@ -82,7 +82,13 @@ def _define_service(callbacks: dict | None = None):
 
         @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="ss", out_signature="v")
         def Get(self, iface: str, prop: str):
-            return self.GetAll(iface)[prop]
+            props = self.GetAll(iface)
+            if prop in props:
+                return props[prop]
+            raise dbus.exceptions.DBusException(
+                f"Property {prop} not found on interface {iface}",
+                name="org.freedesktop.DBus.Error.UnknownProperty"
+            )
 
         @dbus.service.method(dbus.PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
         def GetAll(self, iface: str) -> dict:
@@ -226,12 +232,17 @@ class MprisController:
         self._loop = None
         self._thread: threading.Thread | None = None
         self._callbacks = callbacks or {}
+        self._pending_song: tuple["Song | None", str] | None = None
+        self._pending_status: str | None = None
+        self._pending_position: int | None = None
+        self._closing = False
 
     def start(self) -> None:
         if not MPRIS_AVAILABLE:
             return
         # Lanzar la inicialización y el loop de D-Bus de forma asíncrona en un hilo de fondo
         # Esto independiza por completo el arranque del hilo principal de Textual, eliminando todo riesgo de congelamientos.
+        self._closing = False
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
 
@@ -242,37 +253,55 @@ class MprisController:
             bus = dbus.SessionBus()
             MprisService = _define_service(self._callbacks)
             self._svc = MprisService(bus)
+
+            # Apply any state changes that arrived before the D-Bus bus service finished connecting
+            if self._pending_song is not None:
+                song, art_url = self._pending_song
+                self._svc._set_song(song, art_url)
+            if self._pending_status is not None:
+                self._svc._set_status(self._pending_status)
+            if self._pending_position is not None:
+                self._svc._set_position(self._pending_position)
+
             self._loop = GLib.MainLoop()
-            self._loop.run()
+            if not self._closing:
+                self._loop.run()
         except Exception:
             self._svc = None
             self._loop = None
 
     def stop(self) -> None:
+        self._closing = True
         if self._loop is not None:
-            self._loop.quit()
+            try:
+                self._loop.quit()
+            except Exception:
+                pass
+        if self._thread is not None and self._thread.is_alive() and threading.current_thread() != self._thread:
+            self._thread.join(timeout=0.3)
 
     def set_song(self, song: "Song | None", art_path: str = "") -> None:
-        if self._svc is None:
-            return
         art_url = f"file://{art_path}" if art_path else ""
-        GLib.idle_add(self._svc._set_song, song, art_url)
+        self._pending_song = (song, art_url)
+        if self._svc is not None:
+            GLib.idle_add(self._svc._set_song, song, art_url)
 
     def set_playing(self, playing: bool) -> None:
-        if self._svc is None:
-            return
-        GLib.idle_add(self._svc._set_status, "Playing" if playing else "Paused")
+        status = "Playing" if playing else "Paused"
+        self._pending_status = status
+        if self._svc is not None:
+            GLib.idle_add(self._svc._set_status, status)
 
     def set_stopped(self) -> None:
-        if self._svc is None:
-            return
-        GLib.idle_add(self._svc._set_status, "Stopped")
+        self._pending_status = "Stopped"
+        if self._svc is not None:
+            GLib.idle_add(self._svc._set_status, "Stopped")
 
     def set_position(self, seconds: float) -> None:
-        if self._svc is None:
-            return
         microsec = int(seconds * 1_000_000)
-        GLib.idle_add(self._svc._set_position, microsec)
+        self._pending_position = microsec
+        if self._svc is not None:
+            GLib.idle_add(self._svc._set_position, microsec)
 
 def create(callbacks: dict | None = None) -> MprisController:
     ctrl = MprisController(callbacks)
