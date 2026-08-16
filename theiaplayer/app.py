@@ -272,6 +272,32 @@ class TheIAPlayerApp(KitApp):
         self._current_artist_songs: list[Song] = []
         self._current_artist_name: str = ""
         self._collapsed_folders: set[str] = set()
+        self._spotlight_memory_cache: dict[str, dict] = {}
+        self._spotlight_in_flight: set[str] = set()
+
+    def _read_spotlight(self, album_id: str | None) -> dict | None:
+        """Read spotlight data with L1 in-memory cache and L2 disk cache."""
+        if not album_id:
+            return None
+        mem_cache = getattr(self, "_spotlight_memory_cache", None)
+        if mem_cache is not None and album_id in mem_cache:
+            return mem_cache[album_id]
+        cached = self.dirs.read_cache(f"spotlight-{album_id}") if hasattr(self, "dirs") else None
+        if cached:
+            if mem_cache is not None:
+                mem_cache[album_id] = cached
+            return cached
+        return None
+
+    def _write_spotlight(self, album_id: str | None, data: dict | None) -> None:
+        """Write spotlight data to L1 in-memory cache and L2 persistent disk cache."""
+        if not album_id or not data:
+            return
+        mem_cache = getattr(self, "_spotlight_memory_cache", None)
+        if mem_cache is not None:
+            mem_cache[album_id] = data
+        if hasattr(self, "dirs"):
+            self.dirs.write_cache(f"spotlight-{album_id}", data)
 
     # ── layout ────────────────────────────────────────────────────────
     def compose(self):
@@ -850,8 +876,7 @@ class TheIAPlayerApp(KitApp):
 
                 # 3. Handle Album Spotlight trivia & local JSON cache
                 self._current_spotlight_album_id = album_id
-                cache_key = f"spotlight-{album_id}"
-                cached = self.dirs.read_cache(cache_key)
+                cached = self._read_spotlight(album_id)
 
                 if not cached:
                     # Populate initial instant cache from local track tags/Subsonic metadata
@@ -865,7 +890,7 @@ class TheIAPlayerApp(KitApp):
                         "trivia": "",
                         "status": "pending",
                     }
-                    self.dirs.write_cache(cache_key, cached)
+                    self._write_spotlight(album_id, cached)
 
                 self._current_spotlight_text = cached.get("trivia", "")
 
@@ -900,8 +925,10 @@ class TheIAPlayerApp(KitApp):
 
     @work(exclusive=True, group="spotlight_gen")
     async def _fetch_spotlight_trivia_async(self, album_id: str, album_name: str, artist_name: str) -> None:
-        cache_key = f"spotlight-{album_id}"
-        existing = self.dirs.read_cache(cache_key) or {}
+        if album_id in self._spotlight_in_flight:
+            return
+        self._spotlight_in_flight.add(album_id)
+        existing = self._read_spotlight(album_id) or {}
         try:
             def run_gemini():
                 from google import genai
@@ -965,7 +992,7 @@ class TheIAPlayerApp(KitApp):
                         data[k] = existing.get(k, "N/A")
 
                 data["status"] = "cached"
-                self.dirs.write_cache(cache_key, data)
+                self._write_spotlight(album_id, data)
                 
                 if getattr(self, "_current_spotlight_album_id", None) == album_id:
                     self._current_spotlight_text = data.get("trivia", "")
@@ -973,13 +1000,13 @@ class TheIAPlayerApp(KitApp):
                         self._render_home_spotlight()
             else:
                 existing["status"] = "failed"
-                self.dirs.write_cache(cache_key, existing)
+                self._write_spotlight(album_id, existing)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             existing["status"] = "failed"
             existing["error"] = str(e)
-            self.dirs.write_cache(cache_key, existing)
+            self._write_spotlight(album_id, existing)
+        finally:
+            self._spotlight_in_flight.discard(album_id)
 
     def _render_home_spotlight(self) -> None:
         self._show_songs(self._songs, "home · spotlight")
@@ -1004,7 +1031,7 @@ class TheIAPlayerApp(KitApp):
         for s in upcoming:
             if s.album_id and s.album_id not in seen_albums:
                 seen_albums.add(s.album_id)
-                cached = self.dirs.read_cache(f"spotlight-{s.album_id}")
+                cached = self._read_spotlight(s.album_id)
                 if not cached or not cached.get("trivia") or not cached.get("producer") or cached.get("status") == "failed":
                     self._prefetch_single_spotlight_async(s.album_id, s.album or "N/A", s.artist or "N/A")
 
@@ -1062,7 +1089,7 @@ class TheIAPlayerApp(KitApp):
                 try:
                     data = json.loads(cleaned_text)
                     data["status"] = "cached"
-                    self.dirs.write_cache(cache_key, data)
+                    self._write_spotlight(album_id, data)
                 except Exception:
                     pass
         except Exception:
@@ -1100,8 +1127,7 @@ class TheIAPlayerApp(KitApp):
     def _get_tracks_options(self) -> list[Option]:
         options = []
         if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
-            cache_key = f"spotlight-{self._current_spotlight_album_id}"
-            cached = self.dirs.read_cache(cache_key)
+            cached = self._read_spotlight(self._current_spotlight_album_id)
             spotlight_text = getattr(self, "_current_spotlight_text", "")
 
             # Only render the spotlight block when there is actual content to show
@@ -1980,7 +2006,7 @@ class TheIAPlayerApp(KitApp):
         if not album_id and song and song.album_id:
             album_id = song.album_id
 
-        cached = self.dirs.read_cache(f"spotlight-{album_id}") if album_id else None
+        cached = self._read_spotlight(album_id) if album_id else None
         collaborators = []
         booklet_text = ""
 
