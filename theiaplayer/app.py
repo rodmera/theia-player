@@ -55,10 +55,17 @@ VIEWS = [
 VIEW_LABELS = dict(VIEWS)
 
 
+_CACHED_GEMINI_KEY: str | None = None
+
 def get_gemini_api_key() -> str | None:
-    """Resolve GEMINI_API_KEY from process environment or common .env files."""
+    """Resolve GEMINI_API_KEY from process environment or common .env files with in-memory caching."""
+    global _CACHED_GEMINI_KEY
+    if _CACHED_GEMINI_KEY:
+        return _CACHED_GEMINI_KEY
+
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if api_key:
+        _CACHED_GEMINI_KEY = api_key
         return api_key
 
     for env_file in (
@@ -79,11 +86,13 @@ def get_gemini_api_key() -> str | None:
                             val = line.split("=", 1)[1].strip().strip("\"'")
                             if val:
                                 os.environ["GEMINI_API_KEY"] = val
+                                _CACHED_GEMINI_KEY = val
                                 return val
                         elif line.startswith("GOOGLE_API_KEY="):
                             val = line.split("=", 1)[1].strip().strip("\"'")
                             if val:
                                 os.environ["GOOGLE_API_KEY"] = val
+                                _CACHED_GEMINI_KEY = val
                                 return val
             except Exception:
                 pass
@@ -1077,7 +1086,9 @@ class TheIAPlayerApp(KitApp):
 
     @work(exclusive=True, group="songs")
     async def _load_view(self, view_id: str) -> None:
-        await asyncio.sleep(0.12)  # superseded while the cursor is moving
+        # Only debounce when actively navigating across loaded rows, not on initial boot
+        if self._songs:
+            await asyncio.sleep(0.12)  # superseded while the cursor is moving
         title = self._tracks_title(view_id)
 
         cache_map = {
@@ -1090,8 +1101,14 @@ class TheIAPlayerApp(KitApp):
             "starred": "starred-songs"
         }
         cache_key = cache_map.get(view_id)
-        if view_id == "home" and self.queue.current and self.queue.current.album_id:
-            cache_key = f"home-album-{self.queue.current.album_id}"
+        if view_id == "home":
+            target_album_id = self.queue.current.album_id if (self.queue.current and self.queue.current.album_id) else getattr(self, "_current_spotlight_album_id", None)
+            if target_album_id:
+                self._current_spotlight_album_id = target_album_id
+                cache_key = f"home-album-{target_album_id}"
+                spot_cached = self.dirs.read_cache(f"spotlight-{target_album_id}")
+                if spot_cached:
+                    self._current_spotlight_text = spot_cached.get("trivia", "")
         elif not cache_key and view_id.startswith("pl:"):
             cache_key = f"playlist-songs-{view_id.split(':', 1)[1]}"
 
@@ -1099,8 +1116,10 @@ class TheIAPlayerApp(KitApp):
             cached = self.dirs.read_cache(cache_key)
             if cached:
                 if view_id == "home":
-                    self._current_spotlight_album_id = cached.get("spotlight_album_id")
-                    self._current_spotlight_text = cached.get("spotlight_text")
+                    if cached.get("spotlight_album_id"):
+                        self._current_spotlight_album_id = cached.get("spotlight_album_id")
+                    if cached.get("spotlight_text"):
+                        self._current_spotlight_text = cached.get("spotlight_text")
                 songs = [Song.from_dict(s) for s in cached.get("songs", [])]
                 if view_id == "shuffle-all":
                     import random
