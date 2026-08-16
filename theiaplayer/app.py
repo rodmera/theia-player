@@ -871,8 +871,15 @@ class TheIAPlayerApp(KitApp):
                     album_name = selected_album.name
                     artist_name = selected_album.artist
 
-                # 2. Fetch songs of that selected album
-                songs = await self.client.get_album_songs(album_id)
+                # Check if we already have this album's full tracklist cached in home-album-{album_id}
+                cached_album = self.dirs.read_cache(f"home-album-{album_id}")
+                if cached_album and cached_album.get("songs"):
+                    songs = [Song.from_dict(s) for s in cached_album["songs"]]
+                else:
+                    # 2. Fetch songs of that selected album from Subsonic
+                    songs = await self.client.get_album_songs(album_id)
+                    if songs:
+                        self.dirs.write_cache(f"home-album-{album_id}", {"songs": [s.to_dict() for s in songs]})
 
                 # 3. Handle Album Spotlight trivia & local JSON cache
                 self._current_spotlight_album_id = album_id
@@ -1219,20 +1226,25 @@ class TheIAPlayerApp(KitApp):
             if target_album_id:
                 self._current_spotlight_album_id = target_album_id
                 cache_key = f"home-album-{target_album_id}"
-                spot_cached = self.dirs.read_cache(f"spotlight-{target_album_id}")
+                spot_cached = self._read_spotlight(target_album_id)
                 if spot_cached:
                     self._current_spotlight_text = spot_cached.get("trivia", "")
+
+                # Render immediately with cached album songs or current song in queue (0ms)
+                cached = self.dirs.read_cache(cache_key)
+                if cached and cached.get("songs"):
+                    songs = [Song.from_dict(s) for s in cached["songs"]]
+                    self._show_songs(songs, title)
+                elif self.queue.current:
+                    album_songs_in_queue = [s for s in getattr(self.queue, "_songs", []) if s.album_id == target_album_id]
+                    initial_songs = album_songs_in_queue if album_songs_in_queue else [self.queue.current]
+                    self._show_songs(initial_songs, title)
         elif not cache_key and view_id.startswith("pl:"):
             cache_key = f"playlist-songs-{view_id.split(':', 1)[1]}"
 
-        if cache_key:
+        if cache_key and view_id != "home":
             cached = self.dirs.read_cache(cache_key)
             if cached:
-                if view_id == "home":
-                    if cached.get("spotlight_album_id"):
-                        self._current_spotlight_album_id = cached.get("spotlight_album_id")
-                    if cached.get("spotlight_text"):
-                        self._current_spotlight_text = cached.get("spotlight_text")
                 songs = [Song.from_dict(s) for s in cached.get("songs", [])]
                 if view_id == "shuffle-all":
                     import random
@@ -1463,6 +1475,19 @@ class TheIAPlayerApp(KitApp):
             self._load_art(song.cover_art, f"song-{song.id}")
         if song.album_id and song.album_id != getattr(self, "_current_spotlight_album_id", None):
             if self.view == "home":
+                self._current_spotlight_album_id = song.album_id
+                spot_cached = self._read_spotlight(song.album_id)
+                if spot_cached:
+                    self._current_spotlight_text = spot_cached.get("trivia", "")
+
+                cached_album = self.dirs.read_cache(f"home-album-{song.album_id}")
+                if cached_album and cached_album.get("songs"):
+                    self._show_songs([Song.from_dict(s) for s in cached_album["songs"]], "home · spotlight")
+                else:
+                    album_songs_in_queue = [s for s in getattr(self.queue, "_songs", []) if s.album_id == song.album_id]
+                    initial_songs = album_songs_in_queue if album_songs_in_queue else [song]
+                    self._show_songs(initial_songs, "home · spotlight")
+
                 self._load_view("home")
         self._render_queue()
         self._refresh_song_markers()
