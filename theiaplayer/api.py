@@ -231,16 +231,44 @@ class SubsonicClient:
             raise SubsonicError("share URL is empty")
         return url
 
-    async def get_lyrics(self, song_id: str, artist: str = "", title: str = "") -> list[dict]:
-        """Return structured lyric lines. Tries getLyricsBySongId first, then getLyrics."""
+    async def get_lyrics(
+        self,
+        song_id: str,
+        artist: str = "",
+        title: str = "",
+        album: str = "",
+        duration: float | None = None,
+    ) -> list[dict]:
+        """Return structured lyric lines.
+
+        Tries:
+        1. Local disk cache (~/.cache/theia-player/lyrics-{song_id}.json)
+        2. Subsonic getLyricsBySongId (structured synced lyrics)
+        3. Subsonic getLyrics (plain lyrics)
+        4. LRCLIB public API (synced LRC lyrics)
+        """
+        cache_file = self._art_dir.parent / f"lyrics-{song_id}.json"
+        if cache_file.exists():
+            try:
+                import json
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                if isinstance(cached, list) and cached:
+                    return cached
+            except Exception:
+                pass
+
+        # 1. Subsonic getLyricsBySongId
         try:
             body = await self._get("getLyricsBySongId", id=song_id)
             for entry in body.get("lyricsList", {}).get("structuredLyrics", []):
                 lines = [{"start": l.get("start"), "value": l.get("value", "")} for l in entry.get("line", [])]
                 if lines:
+                    self._save_lyrics_cache(cache_file, lines)
                     return lines
         except Exception:
             pass
+
+        # 2. Subsonic getLyrics
         try:
             params = {"id": song_id}
             if artist:
@@ -250,10 +278,77 @@ class SubsonicClient:
             body = await self._get("getLyrics", **params)
             text = body.get("lyrics", {}).get("value", "")
             if text:
-                return [{"start": None, "value": l} for l in text.splitlines()]
-            return []
+                lines = [{"start": None, "value": l} for l in text.splitlines() if l.strip()]
+                if lines:
+                    self._save_lyrics_cache(cache_file, lines)
+                    return lines
         except Exception:
-            return []
+            pass
+
+        # 3. LRCLIB Public Synced Lyrics Provider
+        if artist and title:
+            lines = await self._fetch_lrclib_lyrics(artist, title, album, duration)
+            if lines:
+                self._save_lyrics_cache(cache_file, lines)
+                return lines
+
+        return []
+
+    def _save_lyrics_cache(self, cache_file: Path, lines: list[dict]) -> None:
+        try:
+            import json
+            cache_file.write_text(json.dumps(lines, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
+    async def _fetch_lrclib_lyrics(
+        self,
+        artist: str,
+        title: str,
+        album: str = "",
+        duration: float | None = None,
+    ) -> list[dict]:
+        import re
+        _LRC_REGEX = re.compile(r"^\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\](.*)")
+
+        clean_title = re.sub(r"[\(\[\{].*?[\)\]\}]", "", title).strip() or title
+        params = {"artist_name": artist, "track_name": clean_title}
+        if album:
+            params["album_name"] = album
+        if duration and duration > 0:
+            params["duration"] = str(int(duration))
+
+        url = "https://lrclib.net/api/get"
+        headers = {"User-Agent": "TheIA-Player/1.0 (https://github.com/rodmera/theia-player)"}
+        try:
+            r = await self._http.get(url, params=params, headers=headers, timeout=4.0)
+            if r.status_code == 200:
+                data = r.json()
+                synced = data.get("syncedLyrics")
+                if synced:
+                    lines = []
+                    for raw_line in synced.splitlines():
+                        raw_line = raw_line.strip()
+                        if not raw_line:
+                            continue
+                        m = _LRC_REGEX.match(raw_line)
+                        if m:
+                            mins = int(m.group(1))
+                            secs = float(m.group(2))
+                            ms = int((mins * 60 + secs) * 1000)
+                            val = m.group(3).strip()
+                            lines.append({"start": ms, "value": val})
+                        elif not raw_line.startswith("["):
+                            lines.append({"start": None, "value": raw_line})
+                    if lines:
+                        return lines
+
+                plain = data.get("plainLyrics")
+                if plain:
+                    return [{"start": None, "value": l} for l in plain.splitlines() if l.strip()]
+        except Exception:
+            pass
+        return []
 
     # ── cover art ─────────────────────────────────────────────────────
     # 1200px: big enough that kitty/sixel terminals get a crisp image at

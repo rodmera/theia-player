@@ -487,3 +487,43 @@ async def test_get_internet_radio_stations(client_factory):
     assert stations[0]["name"] == "Radio Paradise"
     assert stations[0]["streamUrl"] == "https://stream.radioparadise.com/flac"
     assert "/rest/getInternetRadioStations" in str(mock.requests[0].url)
+
+
+@pytest.mark.asyncio
+async def test_get_lyrics_subsonic_synced(client_factory):
+    """Subsonic getLyricsBySongId structured lyrics parsing."""
+    mock = _MockAPI(body={
+        "lyricsList": {
+            "structuredLyrics": [
+                {
+                    "line": [
+                        {"start": 12000, "value": "Line 1"},
+                        {"start": 16500, "value": "Line 2"},
+                    ]
+                }
+            ]
+        }
+    })
+    client = client_factory(mock)
+    lines = await client.get_lyrics("s1", artist="Artist", title="Title")
+    assert len(lines) == 2
+    assert lines[0]["start"] == 12000
+    assert lines[0]["value"] == "Line 1"
+
+
+@pytest.mark.asyncio
+async def test_get_lyrics_fallback_to_lrclib(client_factory, monkeypatch):
+    """When Subsonic returns no lyrics, client falls back to LRCLIB."""
+    mock = _MockAPI(body={})
+    client = client_factory(mock)
+
+    async def mock_lrclib(artist, title, album="", duration=None):
+        return [
+            {"start": 5000, "value": "LRCLIB Line 1"},
+            {"start": 9000, "value": "LRCLIB Line 2"},
+        ]
+
+    monkeypatch.setattr(client, "_fetch_lrclib_lyrics", mock_lrclib)
+    lines = await client.get_lyrics("s_nocache", artist="Duran Duran", title="Rio")
+    assert len(lines) == 2
+    assert lines[0]["value"] == "LRCLIB Line 1"

@@ -2345,7 +2345,13 @@ class TheIAPlayerApp(KitApp):
             self.notify("nothing playing", timeout=3)
             return
         self.notify("fetching lyrics…", timeout=2)
-        lines = await self.client.get_lyrics(song.id, artist=song.artist, title=song.title)
+        lines = await self.client.get_lyrics(
+            song.id,
+            artist=song.artist,
+            title=song.title,
+            album=song.album,
+            duration=song.duration,
+        )
         if not lines:
             self.notify("no lyrics found", timeout=3)
             return
