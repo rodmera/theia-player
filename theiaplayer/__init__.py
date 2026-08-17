@@ -11,7 +11,7 @@ from __future__ import annotations
 # land before any consumer of textual_image (e.g. theiaplayer.art).
 from theiaplayer import terminal_probe  # noqa: F401
 
-__version__ = "2.4.1"
+__version__ = "2.4.2"
 
 def main() -> None:
     try:

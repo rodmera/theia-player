@@ -2247,7 +2247,8 @@ class TheIAPlayerApp(KitApp):
     def action_show_sleep_timer(self) -> None:
         from theiaplayer.screens import SleepTimerModal
         import time
-        time_left = (self._sleep_timer_end - time.time()) if self._sleep_timer_end else None
+        sleep_end = getattr(self, "_sleep_timer_end", None)
+        time_left = (sleep_end - time.time()) if sleep_end else None
 
         def on_sleep_done(choice: str | None) -> None:
             if choice is None:
@@ -2271,7 +2272,7 @@ class TheIAPlayerApp(KitApp):
 
         self.push_screen(
             SleepTimerModal(
-                current_mode=self._sleep_timer_mode,
+                current_mode=getattr(self, "_sleep_timer_mode", None),
                 time_left_s=time_left
             ),
             on_sleep_done,

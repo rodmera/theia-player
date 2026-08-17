@@ -122,3 +122,30 @@ async def test_action_show_album_versions_flow(dummy_app):
 def test_search_modal_initial_query_support():
     modal = SearchModal(initial_query="Daniel Lanois")
     assert modal._initial_query == "Daniel Lanois"
+
+
+def test_action_show_sleep_timer(dummy_app):
+    from theiaplayer.screens import SleepTimerModal
+    dummy_app.action_show_sleep_timer()
+    assert dummy_app.push_screen.called
+    modal = dummy_app.push_screen.call_args[0][0]
+    assert isinstance(modal, SleepTimerModal)
+
+
+@pytest.mark.asyncio
+async def test_action_show_listening_stats(dummy_app):
+    from theiaplayer.screens import ListeningStatsModal
+    dummy_app.client.get_all_songs = AsyncMock(return_value=dummy_app._songs)
+    func = getattr(dummy_app.action_show_listening_stats, "__wrapped__", dummy_app.action_show_listening_stats)
+    await func(dummy_app)
+    assert dummy_app.push_screen.called
+    modal = dummy_app.push_screen.call_args[0][0]
+    assert isinstance(modal, ListeningStatsModal)
+
+
+def test_action_show_equalizer(dummy_app):
+    from theiaplayer.screens import EqualizerModal
+    dummy_app.action_show_equalizer()
+    assert dummy_app.push_screen.called
+    modal = dummy_app.push_screen.call_args[0][0]
+    assert isinstance(modal, EqualizerModal)

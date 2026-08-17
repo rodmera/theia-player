@@ -468,3 +468,22 @@ async def test_set_rating_negative_clamps_to_zero(client_factory):
     await client.set_rating("s1", -5)
     qs = dict(mock.requests[0].url.params)
     assert qs["rating"] == "0"
+
+
+@pytest.mark.asyncio
+async def test_get_internet_radio_stations(client_factory):
+    """SubsonicClient.get_internet_radio_stations fetches station list."""
+    mock = _MockAPI(body={
+        "internetRadioStations": {
+            "station": [
+                {"id": "rad1", "name": "Radio Paradise", "streamUrl": "https://stream.radioparadise.com/flac"},
+                {"id": "rad2", "name": "SomaFM Groove Salad", "streamUrl": "https://ice1.somafm.com/groovesalad-128-mp3"},
+            ]
+        }
+    })
+    client = client_factory(mock)
+    stations = await client.get_internet_radio_stations()
+    assert len(stations) == 2
+    assert stations[0]["name"] == "Radio Paradise"
+    assert stations[0]["streamUrl"] == "https://stream.radioparadise.com/flac"
+    assert "/rest/getInternetRadioStations" in str(mock.requests[0].url)

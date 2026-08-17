@@ -85,3 +85,30 @@ async def test_ipc_command_dispatch():
     res_next = await server._dispatch_command("next", [])
     assert res_next["status"] == "ok"
     app.action_next_track.assert_called_once()
+
+
+def test_omarchy_theme_loader():
+    from ricekit.themes import load_omarchy_theme, KIT_THEMES, KIT_THEME_NAMES
+    theme = load_omarchy_theme()
+    if theme is not None:
+        assert theme.name == "omarchy"
+        assert theme.primary is not None
+        assert "omarchy" in KIT_THEME_NAMES
+
+
+@pytest.mark.asyncio
+async def test_fetch_songs_for_radio_view():
+    from unittest.mock import AsyncMock
+    from theiaplayer.app import TheIAPlayerApp
+
+    app = TheIAPlayerApp.__new__(TheIAPlayerApp)
+    app.client = MagicMock()
+    app.client.get_internet_radio_stations = AsyncMock(return_value=[
+        {"id": "r1", "name": "Radio Paradise", "streamUrl": "https://stream.radioparadise.com/flac"}
+    ])
+
+    songs = await app._fetch_songs_for_view("radio")
+    assert len(songs) == 1
+    assert songs[0].id == "radio:r1"
+    assert songs[0].title == "Radio Paradise"
+    assert songs[0].stream_url == "https://stream.radioparadise.com/flac"
