@@ -66,7 +66,12 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
 - **five themes**, live-previewed (`t` cycles, `T` picks) — including `clear`
   (your terminal's transparency shows through) and `system` (your terminal's
   own ANSI palette)
-- **10-band equalizer (EQ)** — parametric software equalizer with real-time audio filters (`ctrl+e` / `y` to adjust bands and toggle presets: Bass, Rock, Pop, Vocal, Classical, Electronic, Flat)
+- **10-band equalizer (EQ) & Auto-EQ** — parametric software equalizer with real-time audio filters (`ctrl+e` / `y` to adjust bands and toggle presets; includes `AUTO` mode that seamlessly adapts the EQ curve to the track's genre)
+- **sleep timer** — sleep timer dialog (`Z` / `ctrl+t`) with presets (15m-90m, end of track, end of album) and smooth volume fade-out in the last 30 seconds
+- **internet radio** — tune in to live Navidrome internet radio stations from the sidebar with streaming playback
+- **spectrum visualizer styles** — switch the footer visualizer animation (`V`) between `bars`, `led`, `braille`, `wave`, and `peak` with falling caps
+- **listening stats & insights** — interactive stats modal (`I`) displaying top artists, favorite albums, scrobbles and audio hardware details
+- **remote CLI control** — command `theia-player <play|pause|play-pause|next|prev|status|vol +5/-5>` controls any active instance via local Unix domain socket IPC
 
 <div align="center">
 <img src="assets/shot-search.png" alt="search" width="49%">
@@ -138,7 +143,10 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `/` | search |
 | `h` `l` `j` `k` | move around, vim-style |
 | `t` / `T` | themes |
-| `ctrl+e` / `y` | equalizer (gains and presets) |
+| `ctrl+e` / `y` | equalizer (gains and presets, including AUTO genre adaptation) |
+| `Z` / `ctrl+t` | sleep timer (with smooth fade-out) |
+| `V` | visualizer style (bars, led, braille, wave, peak) |
+| `I` | listening stats & insights |
 | `L` | letra sincronizada (LRC) de la canción actual |
 
 ## desarrollo y pruebas

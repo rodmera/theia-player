@@ -1459,3 +1459,142 @@ class AlbumVersionsModal(ModalScreen):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+class SleepTimerModal(ModalScreen):
+    """Interactive Sleep Timer dialog with smooth fade-out."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    SleepTimerModal { align: center middle; background: $kit-overlay; }
+    SleepTimerModal #sleep-box {
+        width: 52; height: auto;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    SleepTimerModal #sleep-title { margin-bottom: 1; text-align: center; }
+    SleepTimerModal #sleep-list { height: auto; max-height: 12; }
+    """
+
+    OPTIONS = [
+        ("off", "❌ Desactivar temporizador"),
+        ("15m", "⏱️  15 minutos"),
+        ("30m", "⏱️  30 minutos"),
+        ("45m", "⏱️  45 minutos"),
+        ("60m", "⏱️  60 minutos (1 hora)"),
+        ("90m", "⏱️  90 minutos (1.5 horas)"),
+        ("track", "🎵 Al terminar la canción actual"),
+        ("album", "💿 Al terminar el álbum actual"),
+    ]
+
+    def __init__(self, current_mode: str | None = None, time_left_s: float | None = None) -> None:
+        super().__init__()
+        self._current_mode = current_mode
+        self._time_left_s = time_left_s
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="sleep-box"):
+            title_text = "💤  Temporizador de Apagado (Sleep Timer)"
+            if self._time_left_s and self._time_left_s > 0:
+                mins = int(self._time_left_s // 60)
+                secs = int(self._time_left_s % 60)
+                title_text += f"\n[Restante: {mins}:{secs:02d}]"
+            yield Static(Text(title_text, style=f"bold {palette.lav}"), id="sleep-title")
+            yield NavList(id="sleep-list")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#sleep-box"))
+        ol = self.query_one("#sleep-list", NavList)
+        options = []
+        highlight_idx = 0
+        for i, (key, label) in enumerate(self.OPTIONS):
+            style = f"bold {palette.peach}" if key == self._current_mode else palette.text
+            prefix = "✔ " if key == self._current_mode else "  "
+            options.append(Option(Text(f"{prefix}{label}", style=style), id=key))
+            if key == self._current_mode:
+                highlight_idx = i
+        ol.add_options(options)
+        ol.highlighted = highlight_idx
+        ol.focus()
+
+    @on(OptionList.OptionSelected, "#sleep-list")
+    def _selected(self, event: OptionList.OptionSelected) -> None:
+        key = event.option.id
+        self.dismiss(key)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ListeningStatsModal(ModalScreen):
+    """Listening Statistics & Insights Modal."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("q", "cancel", show=False),
+        Binding("enter", "cancel", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    ListeningStatsModal { align: center middle; background: $kit-overlay; }
+    ListeningStatsModal #stats-box {
+        width: 72; height: auto; max-height: 85%;
+        background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 2;
+    }
+    ListeningStatsModal #stats-title { margin-bottom: 1; text-align: center; }
+    ListeningStatsModal #stats-scroll { height: auto; max-height: 24; }
+    ListeningStatsModal #stats-footer { margin-top: 1; color: $text-muted; text-align: center; }
+    """
+
+    def __init__(self, stats_data: dict) -> None:
+        super().__init__()
+        self._stats = stats_data
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="stats-box"):
+            yield Static(Text("📊  ESTADÍSTICAS & INSIGHTS DE ESCUCHA", style=f"bold {palette.peach}"), id="stats-title")
+            with VerticalScroll(id="stats-scroll"):
+                yield Static(self._build_content(), id="stats-content")
+            yield Static(Text("Esc / Enter para cerrar", style=palette.dim), id="stats-footer")
+
+    def on_mount(self) -> None:
+        pop_in(self.query_one("#stats-box"))
+
+    def _build_content(self) -> Text:
+        t = Text()
+        s = self._stats
+
+        t.append("🎧 Resumen de Actividad\n", style=f"bold {palette.lav}")
+        t.append(f"  • Canciones en biblioteca:       {s.get('total_songs', 0):,} tracks\n", style=palette.text)
+        t.append(f"  • Álbumes totales:               {s.get('total_albums', 0):,} álbumes\n", style=palette.text)
+        t.append(f"  • Calidad de audio:              {s.get('audio_quality', 'FLAC Lossless (16/44.1k)')}\n", style=palette.text)
+        t.append(f"  • Salida de audio:               {s.get('audio_device', 'PipeWire')}\n\n", style=palette.dim)
+
+        top_artists = s.get("top_artists", [])
+        if top_artists:
+            t.append("👑 Top Artistas Más Escuchados\n", style=f"bold {palette.peach}")
+            max_plays = max((a.get("plays", 1) for a in top_artists), default=1)
+            for i, a in enumerate(top_artists[:7], 1):
+                name = a.get("name", "?")
+                plays = a.get("plays", 0)
+                bar_len = max(1, int((plays / max_plays) * 16))
+                bar_str = "█" * bar_len
+                t.append(f"  {i}. {name:<24} ", style=f"bold {palette.text}")
+                t.append(f"{bar_str} ", style=palette.lav)
+                t.append(f"{plays}♪\n", style=palette.dim)
+            t.append("\n")
+
+        top_albums = s.get("top_albums", [])
+        if top_albums:
+            t.append("💿 Álbumes Favoritos\n", style=f"bold {palette.blue}")
+            for i, alb in enumerate(top_albums[:5], 1):
+                t.append(f"  {i}. {alb.get('name', '?')} ", style=f"bold {palette.text}")
+                t.append(f"— {alb.get('artist', '')} ({alb.get('plays', 0)} plays)\n", style=palette.dim)
+
+        return t
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

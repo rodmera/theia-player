@@ -226,7 +226,7 @@ def test_search_results_not_empty_when_songs_present():
     (Song(id="1", title="T"), {
         "id", "title", "artist", "album", "album_id", "artist_id",
         "track", "disc", "year", "duration", "cover_art", "suffix",
-        "bit_rate", "starred", "rating", "play_count", "genre",
+        "bit_rate", "starred", "rating", "play_count", "genre", "stream_url",
     }),
     (Playlist(id="1", name="P"), {"id", "name", "song_count", "duration", "owner"}),
 ])

@@ -193,6 +193,12 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[full]"
 | Multi-selección | `app.py` | `v` toggle; `a`/`A`/`f` operan sobre todos |
 | Filtros de biblioteca | `config.py`, `app.py` | `[filters]` en player.toml |
 | Columnas configurables | `config.py`, `app.py` | `[columns]` en player.toml |
+| Auto-EQ por Género | `screens.py`, `app.py` | `ctrl+e`/`y` + `P` — Modo `AUTO` que detecta el género del track y ajusta en caliente las 10 bandas del ecualizador en mpv (Rock, Electronic, Jazz, Pop, Classical, Acoustic, Vocal, Bass) |
+| Sleep Timer con Fade-Out | `screens.py`, `app.py` | `Z`/`ctrl+t` — Temporizador de apagado programable (15m, 30m, 45m, 60m, 90m, fin de canción, fin de álbum) con desvanecimiento de volumen progresivo en los últimos 30 segundos |
+| Radio Web (Internet Radio) | `api.py`, `models.py`, `app.py` | Vista `radio` en sidebar que consume `getInternetRadioStations` de Navidrome para reproducir emisoras de streaming en vivo |
+| Estilos de Visualizador | `anim.py`, `widgets.py`, `app.py` | `V` — Alterna en caliente entre 5 estilos de visualización de espectro en el footer: `bars`, `led`, `braille`, `wave`, `peak` |
+| Estadísticas de Escucha | `screens.py`, `app.py` | `I` — Modal interactivo de insights con top artistas más escuchados, álbumes favoritos, scrobbles y métricas de audio |
+| Control Remoto CLI e IPC | `ipc.py`, `app.py` | `theia-player <play|pause|play-pause|next|prev|status|vol +5/-5>` controla la instancia activa vía socket Unix |
 
 ## Suite de Pruebas TUI / Integración
 

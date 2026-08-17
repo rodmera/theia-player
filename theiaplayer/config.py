@@ -53,6 +53,9 @@ DEFAULT_KEYBINDS: dict = {
     "focus_filter":         "ctrl+f",
     "moods":                "ctrl+w",
     "album_versions":       "ctrl+v",
+    "sleep_timer":          "Z,ctrl+t",
+    "visualizer_style":     "V",
+    "listening_stats":      "I",
     "go_back":              "backspace,escape,alt+left",
 }
 
@@ -404,6 +407,9 @@ def build_bindings(keybinds: dict):
         Binding(kb["focus_filter"],         "show_focus_filter",    "focus filter",         show=True),
         Binding(kb["moods"],                "show_moods",           "ambientes",            show=True),
         Binding(kb["album_versions"],       "show_album_versions",  "album versions",       show=True),
+        Binding(kb["sleep_timer"],          "show_sleep_timer",     "sleep timer",          show=True),
+        Binding(kb["visualizer_style"],     "cycle_visualizer_style", "visualizer",         show=True),
+        Binding(kb["listening_stats"],      "show_listening_stats", "stats",               show=True),
         Binding(kb["go_back"],              "go_back",              "volver",               show=True),
         Binding(kb["help"],                 "help",                 "help"),
         Binding(kb["quit"],                 "quit",                 "quit"),

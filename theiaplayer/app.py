@@ -50,6 +50,7 @@ VIEWS = [
     ("recent", "recently played"),
     ("frequent", "most played"),
     ("starred", "starred"),
+    ("radio", "radio en vivo"),
     ("shuffle-all", "shuffle everything"),
 ]
 VIEW_LABELS = dict(VIEWS)
@@ -200,6 +201,9 @@ class TheIAPlayerApp(KitApp):
         Binding("ctrl+f", "show_focus_filter", "focus filter", show=True),
         Binding("ctrl+w", "show_moods", "ambientes", show=True),
         Binding("ctrl+v", "show_album_versions", "versions", show=True),
+        Binding("Z,ctrl+t", "show_sleep_timer", "sleep timer", show=True),
+        Binding("V", "cycle_visualizer_style", "visualizer", show=True),
+        Binding("I", "show_listening_stats", "stats", show=True),
         Binding("backspace,escape,alt+left", "go_back", "volver", show=True),
         Binding("alt+a", "filter_albums", "albums", show=False),
         Binding("alt+s", "filter_singles", "singles/EPs", show=False),
@@ -274,6 +278,10 @@ class TheIAPlayerApp(KitApp):
         self._collapsed_folders: set[str] = set()
         self._spotlight_memory_cache: dict[str, dict] = {}
         self._spotlight_in_flight: set[str] = set()
+        self._sleep_timer_end: float | None = None
+        self._sleep_timer_mode: str | None = None
+        self._sleep_timer_initial_vol: int = 80
+        self._ipc_server = None
 
     def _read_spotlight(self, album_id: str | None) -> dict | None:
         """Read spotlight data with L1 in-memory cache and L2 disk cache."""
@@ -321,6 +329,9 @@ class TheIAPlayerApp(KitApp):
     def on_mount(self) -> None:
         get_gemini_api_key()
         self._loop = asyncio.get_running_loop()  # for mpv-thread callbacks
+        from theiaplayer.ipc import IpcServer
+        self._ipc_server = IpcServer(self)
+        asyncio.create_task(self._ipc_server.start())
         state = self.dirs.load_state()
         self._notify_on = state.get("desktop_notifications", self._notify_on)
         self.init_kit(theme=state.get("theme"))
@@ -478,6 +489,15 @@ class TheIAPlayerApp(KitApp):
         text = Text()
         if getattr(self, "private_mode", False):
             text.append("[Private] ", style="bold #ff007f")
+        if self._sleep_timer_end is not None:
+            import time
+            rem = max(0, int(self._sleep_timer_end - time.time()))
+            mins = int(rem // 60)
+            text.append(f"[💤 {mins}m] ", style="bold #a6e3a1")
+        elif getattr(self, "_sleep_timer_mode", None) == "track":
+            text.append("[💤 track] ", style="bold #a6e3a1")
+        elif getattr(self, "_sleep_timer_mode", None) == "album":
+            text.append("[💤 album] ", style="bold #a6e3a1")
         text.append(f"{self.client.username}@{host}", style=palette.dim)
         from theiaplayer import __version__
         text.append(f" · v{__version__}", style=palette.dim)
@@ -494,6 +514,23 @@ class TheIAPlayerApp(KitApp):
                 from theiaplayer.screens import LyricsModal
                 if isinstance(self.screen, LyricsModal):
                     self.screen.update_time(self.player.position)
+
+            # Sleep timer check & fade out
+            if self._sleep_timer_end is not None and self.player is not None and self.player.active:
+                import time
+                remaining = self._sleep_timer_end - time.time()
+                if remaining <= 30.0 and remaining > 0:
+                    fade_ratio = max(0.0, remaining / 30.0)
+                    target_vol = int(self._sleep_timer_initial_vol * fade_ratio)
+                    self.player.set_volume(max(0, target_vol))
+                elif remaining <= 0:
+                    self.player.pause()
+                    self.player.set_volume(self._sleep_timer_initial_vol)
+                    self._sleep_timer_end = None
+                    self._sleep_timer_mode = None
+                    self._render_status()
+                    self.notify("💤 Temporizador: reproducción pausada", timeout=4)
+
             now.tick()
             busy = any(
                 not w.is_finished
@@ -925,6 +962,23 @@ class TheIAPlayerApp(KitApp):
             return await self.client.get_songs_by_albums(view_id)
         elif view_id == "starred":
             return (await self.client.get_starred()).songs
+        elif view_id == "radio":
+            stations = await self.client.get_internet_radio_stations()
+            songs = []
+            for st in stations:
+                songs.append(
+                    Song(
+                        id=f"radio:{st.get('id', '')}",
+                        title=st.get("name", "Radio Station"),
+                        artist="Radio en Vivo",
+                        album="Internet Radio",
+                        duration=0,
+                        genre="Radio",
+                        suffix="stream",
+                        stream_url=st.get("streamUrl", st.get("homePageUrl", "")),
+                    )
+                )
+            return songs
         elif view_id.startswith("pl:"):
             pid = view_id.split(":", 1)[1]
             return await self.client.get_playlist_songs(pid)
@@ -1456,12 +1510,15 @@ class TheIAPlayerApp(KitApp):
             self.action_show_lyrics()
         
         # Audio cache implementation
-        audio_path = self._get_cached_audio_path(song)
-        if audio_path and audio_path.exists():
-            self.player.play(str(audio_path), start=resume_at)
+        if getattr(song, "stream_url", None):
+            self.player.play(song.stream_url, start=0.0)
         else:
-            self.player.play(self.client.stream_url(song.id), start=resume_at)
-            self._cache_audio_async(song)
+            audio_path = self._get_cached_audio_path(song)
+            if audio_path and audio_path.exists():
+                self.player.play(str(audio_path), start=resume_at)
+            else:
+                self.player.play(self.client.stream_url(song.id), start=resume_at)
+                self._cache_audio_async(song)
 
         # Auto-EQ: adjust parametric EQ bands to the matching curve for current track's genre
         eq_cfg = self._pcfg.get("equalizer", {})
@@ -2186,6 +2243,76 @@ class TheIAPlayerApp(KitApp):
         except Exception as e:
             self.notify(f"Could not query album versions: {e}", severity="error", timeout=4)
 
+    # ── sleep timer ───────────────────────────────────────────────────
+    def action_show_sleep_timer(self) -> None:
+        from theiaplayer.screens import SleepTimerModal
+        import time
+        time_left = (self._sleep_timer_end - time.time()) if self._sleep_timer_end else None
+
+        def on_sleep_done(choice: str | None) -> None:
+            if choice is None:
+                return
+            if choice == "off":
+                self._sleep_timer_end = None
+                self._sleep_timer_mode = None
+                self.notify("Temporizador de apagado desactivado", timeout=2)
+            elif choice in ("15m", "30m", "45m", "60m", "90m"):
+                mins = int(choice[:-1])
+                self._sleep_timer_initial_vol = self.player.volume if self.player else 80
+                self._sleep_timer_end = time.time() + (mins * 60)
+                self._sleep_timer_mode = choice
+                self.notify(f"💤 Apagado programado en {mins} minutos", timeout=3)
+            elif choice in ("track", "album"):
+                self._sleep_timer_mode = choice
+                self._sleep_timer_end = None
+                label = "la canción actual" if choice == "track" else "el álbum actual"
+                self.notify(f"💤 Apagado programado al terminar {label}", timeout=3)
+            self._render_status()
+
+        self.push_screen(
+            SleepTimerModal(
+                current_mode=self._sleep_timer_mode,
+                time_left_s=time_left
+            ),
+            on_sleep_done,
+        )
+
+    # ── visualizer style ──────────────────────────────────────────────
+    def action_cycle_visualizer_style(self) -> None:
+        now = self.query_one("#now", NowPlaying)
+        style = now.viz.cycle_style()
+        self.dirs.save_state({"visualizer_style": style})
+        self.notify(f"Visualizador: {style.upper()}", timeout=1.5)
+
+    # ── listening stats ───────────────────────────────────────────────
+    @work(group="stats")
+    async def action_show_listening_stats(self) -> None:
+        from theiaplayer.screens import ListeningStatsModal
+        self.notify("Cargando estadísticas…", timeout=1.5)
+        try:
+            all_songs = await self.client.get_all_songs() if self.client else []
+            from collections import Counter
+            artist_counts = Counter(s.artist for s in all_songs if s.artist)
+            top_artists = [{"name": a, "plays": c} for a, c in artist_counts.most_common(7)]
+
+            album_counts = Counter(s.album for s in all_songs if s.album)
+            top_albums = []
+            for alb_name, cnt in album_counts.most_common(5):
+                sample_song = next((s for s in all_songs if s.album == alb_name), None)
+                top_albums.append({"name": alb_name, "artist": sample_song.artist if sample_song else "", "plays": cnt})
+
+            stats_data = {
+                "total_songs": len(all_songs),
+                "total_albums": len(album_counts),
+                "top_artists": top_artists,
+                "top_albums": top_albums,
+                "audio_device": self.player.get_current_audio_device() if self.player else "PipeWire",
+                "audio_quality": "FLAC Lossless (16/44.1k)",
+            }
+            self.push_screen(ListeningStatsModal(stats_data))
+        except Exception as e:
+            self._connection_trouble(e)
+
     # ── rating ────────────────────────────────────────────────────────
     def action_rate(self, n: int) -> None:
         song = self._highlighted_song()
@@ -2383,6 +2510,20 @@ class TheIAPlayerApp(KitApp):
                 )
         else:
             self._end_failures = 0
+
+        if getattr(self, "_sleep_timer_mode", None) == "track":
+            self.player.stop()
+            self._sleep_timer_mode = None
+            self._sleep_timer_end = None
+            self.notify("💤 Temporizador: fin de canción alcanzado", timeout=4)
+            self._render_status()
+            now = self.query_one("#now", NowPlaying)
+            now.set_playing(False)
+            now.set_progress(0.0, 0.0)
+            self._render_queue()
+            if self.mpris is not None:
+                self.mpris.set_stopped()
+            return
 
         song = self.queue.advance(natural=not failed and not is_rapid_end)
         if song is not None:
@@ -2761,6 +2902,11 @@ class TheIAPlayerApp(KitApp):
         self.exit()
 
     def on_unmount(self) -> None:
+        if self._ipc_server is not None:
+            try:
+                asyncio.create_task(self._ipc_server.stop())
+            except Exception:
+                pass
         if self.mpris is not None:
             self.mpris.stop()
 
@@ -2877,6 +3023,28 @@ def main() -> None:
     import sys
     import threading
     import traceback
+
+    CLI_COMMANDS = {
+        "play", "pause", "play-pause", "playpause", "toggle",
+        "next", "prev", "previous", "skip", "stop", "mute",
+        "vol", "volume", "status",
+    }
+    if len(sys.argv) > 1 and sys.argv[1].lower() in CLI_COMMANDS:
+        from theiaplayer.ipc import send_ipc_command
+        cmd = sys.argv[1].lower()
+        args = sys.argv[2:]
+        res = send_ipc_command(cmd, *args)
+        if res is None:
+            print("theia-player is not currently running.")
+            sys.exit(1)
+        if cmd == "status":
+            if res.get("status") in ("playing", "paused"):
+                print(f"[{res.get('status').upper()}] {res.get('title')} — {res.get('artist')} ({res.get('album')}) [{res.get('position')}s/{res.get('duration')}s] (vol: {res.get('volume')}%)")
+            else:
+                print("[STOPPED] No active playback")
+        else:
+            print(f"theia-player: {res.get('action', cmd)} -> {res.get('status', 'ok')}")
+        sys.exit(0)
 
     # Silenciar warnings menores de PipeWire
     os.environ["PIPEWIRE_DEBUG"] = "0"

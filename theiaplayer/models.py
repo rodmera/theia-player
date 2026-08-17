@@ -88,6 +88,7 @@ class Song:
     rating: int = 0        # 0-5, userRating from Navidrome
     play_count: int = 0
     genre: str = ""
+    stream_url: str | None = None
 
     @classmethod
     def from_api(cls, d: dict) -> "Song":
@@ -109,6 +110,7 @@ class Song:
             rating=int(d.get("userRating", 0) or 0),
             play_count=int(d.get("playCount", 0) or 0),
             genre=d.get("genre", ""),
+            stream_url=d.get("streamUrl"),
         )
 
     def to_dict(self) -> dict:

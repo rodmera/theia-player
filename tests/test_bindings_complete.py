@@ -49,6 +49,9 @@ _ALIASES: dict[str, str] = {
     "focus_filter":         "show_focus_filter",
     "moods":                "show_moods",
     "album_versions":       "show_album_versions",
+    "sleep_timer":          "show_sleep_timer",
+    "visualizer_style":     "cycle_visualizer_style",
+    "listening_stats":      "show_listening_stats",
     "go_back":              "go_back",
 }
 

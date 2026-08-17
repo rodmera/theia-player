@@ -195,6 +195,15 @@ class SubsonicClient:
                 break
         return songs[:max_songs]
 
+    async def get_internet_radio_stations(self) -> list[dict]:
+        """Fetch internet radio stations from Navidrome/Subsonic."""
+        try:
+            data = await self._get("getInternetRadioStations")
+            stations = data.get("internetRadioStations", {}).get("station", [])
+            return stations if isinstance(stations, list) else ([stations] if stations else [])
+        except Exception:
+            return []
+
     # ── playback side-channel ─────────────────────────────────────────
     def stream_url(self, song_id: str) -> str:
         params = "&".join(f"{k}={v}" for k, v in self._params(id=song_id).items())

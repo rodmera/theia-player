@@ -130,19 +130,33 @@ def fmt_time(seconds: float | int | None) -> str:
 
 # ── the visualizer model (widget-free so it's testable) ────────────────
 
+VIZ_STYLES = ["bars", "led", "braille", "wave", "peak"]
 _BLOCKS = " ▁▂▃▄▅▆▇█"
+_BRAILLE = " ⡀⣀⣄⣤⣦⣶⣷⣿"
 
 class VizModel:
     """Fake-but-lively EQ bars: each bar eases toward a random target that
     re-rolls near arrival. Energy 1.0 = playing, 0.0 = silent; pausing
-    lets the bars fall to the floor instead of freezing mid-air."""
+    lets the bars fall to the floor instead of freezing mid-air.
+    Supports multiple visual styles: bars, led, braille, wave, peak."""
 
-    def __init__(self, bars: int = 5, seed: int = 0) -> None:
+    def __init__(self, bars: int = 5, seed: int = 0, style: str = "bars") -> None:
         self.n = bars
         self.heights = [0.0] * bars
         self.targets = [0.0] * bars
+        self.peaks = [0.0] * bars
         self.energy = 0.0
+        self.style = style if style in VIZ_STYLES else "bars"
         self._t = seed
+
+    def set_style(self, style: str) -> None:
+        if style in VIZ_STYLES:
+            self.style = style
+
+    def cycle_style(self) -> str:
+        cur_idx = VIZ_STYLES.index(self.style) if self.style in VIZ_STYLES else 0
+        self.style = VIZ_STYLES[(cur_idx + 1) % len(VIZ_STYLES)]
+        return self.style
 
     def tick(self) -> None:
         self._t += 1
@@ -160,11 +174,35 @@ class VizModel:
                 self.targets[i] = 0.0
             self.heights[i] += (self.targets[i] - self.heights[i]) * 0.45
 
+            # Peak tracking with falling gravity
+            if self.heights[i] > self.peaks[i]:
+                self.peaks[i] = self.heights[i]
+            else:
+                self.peaks[i] = max(0.0, self.peaks[i] - 0.05)
+
     def render(self) -> Text:
         t = Text()
         blendable = can_blend()
         for i, h in enumerate(self.heights):
-            ch = _BLOCKS[min(len(_BLOCKS) - 1, round(h * (len(_BLOCKS) - 1)))]
+            if self.style == "braille":
+                chars = _BRAILLE
+                ch = chars[min(len(chars) - 1, round(h * (len(chars) - 1)))]
+            elif self.style == "led":
+                chars = "  ▪▄▆█"
+                ch = chars[min(len(chars) - 1, round(h * (len(chars) - 1)))]
+            elif self.style == "wave":
+                chars = " ─~≈≋"
+                ch = chars[min(len(chars) - 1, round(h * (len(chars) - 1)))]
+            elif self.style == "peak":
+                chars = _BLOCKS
+                idx = min(len(chars) - 1, round(h * (len(chars) - 1)))
+                ch = chars[idx]
+                if self.peaks[i] > h + 0.12 and self.energy > 0.1:
+                    ch = "▔" if idx == 0 else chars[idx]
+            else:  # "bars" default
+                chars = _BLOCKS
+                ch = chars[min(len(chars) - 1, round(h * (len(chars) - 1)))]
+
             if blendable:
                 color = blend(palette.blue, palette.mauve, i / max(1, self.n - 1))
                 color = blend(palette.faint, color, 0.35 + 0.65 * h)
