@@ -1463,6 +1463,14 @@ class TheIAPlayerApp(KitApp):
             self.player.play(self.client.stream_url(song.id), start=resume_at)
             self._cache_audio_async(song)
 
+        # Auto-EQ: adjust parametric EQ bands to the matching curve for current track's genre
+        eq_cfg = self._pcfg.get("equalizer", {})
+        if eq_cfg.get("enabled", False) and eq_cfg.get("preset") == "auto" and self.player is not None:
+            from theiaplayer.screens import PRESETS, resolve_genre_preset
+            matched_preset = resolve_genre_preset(song.genre)
+            gains = PRESETS.get(matched_preset, PRESETS["flat"])
+            self.player.set_equalizer(gains)
+
         # Track playback start timestamp for rapid failure detection
         import time
         self._last_play_time = time.time()

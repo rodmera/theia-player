@@ -18,9 +18,62 @@ makes them identical murky blue). App stylesheets should use:
 
 from __future__ import annotations
 
+import os
+import tomllib
 from textual.theme import Theme
 
 _ACCENTS = dict(success="#a6e3a1", warning="#f9e2af", error="#f38ba8", dark=True)
+
+def load_omarchy_theme() -> Theme | None:
+    """Load active Omarchy palette from ~/.config/omarchy/current/theme/colors.toml."""
+    path = os.path.expanduser("~/.config/omarchy/current/theme/colors.toml")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            c = tomllib.load(f)
+
+        bg = c.get("background", "#1a1b26")
+        panel_bg = c.get("dark_background", "#13141c")
+        modal_bg = c.get("darker_background", "#0e0e14")
+        surface = c.get("lighter_background", "#24283b")
+        fg = c.get("foreground", "#a9b1d6")
+        accent = c.get("accent", "#7aa2f7")
+        muted = c.get("muted", "#414868")
+        selection = c.get("selection", "#292e42")
+
+        return Theme(
+            name="omarchy",
+            primary=accent,
+            secondary=c.get("magenta", "#ad8ee6"),
+            accent=c.get("cyan", "#449dab"),
+            background=bg,
+            surface=surface,
+            panel=panel_bg,
+            foreground=fg,
+            success=c.get("green", "#9ece6a"),
+            warning=c.get("yellow", "#e0af68"),
+            error=c.get("red", "#f7768e"),
+            dark=(c.get("mode", "dark") == "dark"),
+            variables={
+                "kit-border": muted,
+                "kit-border-focus": accent,
+                "kit-border-alt": c.get("blue", accent),
+                "kit-modal-bg": modal_bg,
+                "kit-cursor": selection,
+                "kit-overlay": "transparent",
+                "scrollbar": surface,
+                "scrollbar-hover": muted,
+                "scrollbar-active": accent,
+                "scrollbar-background": panel_bg,
+                "screen-selection-background": f"{accent} 30%",
+                "input-selection-background": f"{accent} 30%",
+            },
+        )
+    except Exception:
+        return None
+
+_omarchy_theme = load_omarchy_theme()
 
 KIT_THEMES: list[Theme] = [
     Theme(
@@ -129,6 +182,6 @@ KIT_THEMES: list[Theme] = [
             "input-selection-background": "ansi_cyan",
         },
     ),
-]
+] + ([_omarchy_theme] if _omarchy_theme else [])
 
 KIT_THEME_NAMES = [t.name for t in KIT_THEMES]

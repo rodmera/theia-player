@@ -47,3 +47,25 @@ def test_real_player_equalizer_logic():
         
     finally:
         player.terminate()
+
+
+def test_resolve_genre_preset_mappings():
+    from theiaplayer.screens import resolve_genre_preset, PRESETS
+
+    assert resolve_genre_preset("Rock / Alternative") == "rock"
+    assert resolve_genre_preset("Heavy Metal") == "rock"
+    assert resolve_genre_preset("Synth-Pop / Electronic") == "electronic"
+    assert resolve_genre_preset("Bossa Nova / Jazz") == "jazz"
+    assert resolve_genre_preset("Pop / Mainstream") == "pop"
+    assert resolve_genre_preset("Modern Classical") == "classical"
+    assert resolve_genre_preset("Folk / Acoustic") == "acoustic"
+    assert resolve_genre_preset("Cabaret / Vocal") == "vocal"
+    assert resolve_genre_preset("Hip Hop / Rap") == "bass"
+    assert resolve_genre_preset(None) == "flat"
+    assert resolve_genre_preset("Unknown Genre") == "flat"
+
+    # All resolved presets must exist in PRESETS
+    for g in ["Rock", "Electronic", "Jazz", "Pop", "Classical", "Acoustic", "Vocal", "Hip Hop", None]:
+        preset_name = resolve_genre_preset(g)
+        assert preset_name in PRESETS
+        assert len(PRESETS[preset_name]) == 10

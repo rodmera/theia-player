@@ -776,7 +776,33 @@ PRESETS: dict[str, list[float]] = {
     "vocal":      [-4.0, -3.0, -2.0, 0.0, 3.0, 4.0, 3.0, 1.0, -1.0, -3.0],
     "electronic": [5.0, 4.0, 1.0, 0.0, -1.0, 2.0, 1.0, 3.0, 4.0, 5.0],
     "classical":  [4.0, 3.0, 2.0, 2.0, -1.0, -1.0, 0.0, 2.0, 3.0, 4.0],
+    "jazz":       [3.0, 2.0, 1.0, 2.0, -1.0, -1.0, 0.0, 1.0, 2.0, 3.0],
+    "acoustic":   [3.0, 2.0, 0.0, 1.0, 2.0, 2.0, 1.0, 2.0, 3.0, 2.0],
 }
+
+
+def resolve_genre_preset(genre: str | None) -> str:
+    """Map a song genre string to the optimal equalizer preset curve."""
+    if not genre:
+        return "flat"
+    g = genre.lower()
+    if any(k in g for k in ("electronic", "synth", "techno", "house", "electro", "ambient", "trip-hop", "downtempo", "dance")):
+        return "electronic"
+    if any(k in g for k in ("rock", "metal", "grunge", "punk", "alternative")):
+        return "rock"
+    if any(k in g for k in ("jazz", "bossa", "blues", "soul", "sophisti")):
+        return "jazz"
+    if any(k in g for k in ("classical", "orchestral", "soundtrack", "modern classical")):
+        return "classical"
+    if any(k in g for k in ("acoustic", "folk", "singer", "country")):
+        return "acoustic"
+    if any(k in g for k in ("vocal", "chanson", "cabaret")):
+        return "vocal"
+    if any(k in g for k in ("hip hop", "rap", "r&b", "trap", "reggae")):
+        return "bass"
+    if any(k in g for k in ("pop", "disco")):
+        return "pop"
+    return "flat"
 
 class EqualizerBand(Static):
     """A vertical column representing a single frequency band in the EQ."""
@@ -888,7 +914,13 @@ class EqualizerModal(ModalScreen):
 
     def _footer_text(self) -> str:
         state = "[ON]" if self._enabled else "[OFF]"
-        preset_name = self._preset.upper()
+        if self._preset == "auto":
+            curr = getattr(self.app.queue, "current", None) if hasattr(self, "app") and hasattr(self.app, "queue") else None
+            genre = curr.genre if (curr and curr.genre) else "General"
+            resolved = resolve_genre_preset(genre)
+            preset_name = f"AUTO ({resolved.upper()})"
+        else:
+            preset_name = self._preset.upper()
         return f"Status: {state}  ·  Preset: {preset_name}  ·  [Space]: Toggle  ·  [P]: Presets"
 
     def _get_gains(self) -> list[float]:
@@ -945,19 +977,25 @@ class EqualizerModal(ModalScreen):
             self.app.player.set_equalizer([])
 
     def action_cycle_preset(self) -> None:
-        presets_list = ["flat", "bass", "rock", "pop", "vocal", "electronic", "classical"]
+        presets_list = ["flat", "auto", "bass", "rock", "pop", "vocal", "electronic", "classical", "jazz", "acoustic"]
         try:
             cur_idx = presets_list.index(self._preset)
         except ValueError:
             cur_idx = -1
         next_preset = presets_list[(cur_idx + 1) % len(presets_list)]
         self._preset = next_preset
-        
-        gains = PRESETS[next_preset]
+
+        if next_preset == "auto":
+            curr = getattr(self.app.queue, "current", None) if hasattr(self, "app") and hasattr(self.app, "queue") else None
+            resolved = resolve_genre_preset(curr.genre if curr else None)
+            gains = PRESETS[resolved]
+        else:
+            gains = PRESETS[next_preset]
+
         for i, band in enumerate(self._bands):
             band.gain = gains[i]
             band.refresh()
-            
+
         self.query_one("#eq-footer", Static).update(self._footer_text())
         if self._enabled:
             self.app.player.set_equalizer(gains)
