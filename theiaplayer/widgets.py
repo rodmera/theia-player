@@ -91,10 +91,12 @@ class SidebarTooltip(Static):
         super().__init__(**kwargs)
         self.border_title = "playlist"
 
-    def show_info(self, title: str, category: str = "", details: str = "", border_title: str = "playlist") -> None:
+    def show_info(self, title: str, category: str = "", details: str = "", border_title: str = "playlist", mouse_x: int | None = None, mouse_y: int | None = None) -> None:
         """Render and display the tooltip with playlist / view info."""
         self.border_title = border_title
         self.update(_format_sidebar_tooltip(title, category=category, details=details))
+        if mouse_x is not None and mouse_y is not None:
+            self.position_near(mouse_x, mouse_y)
         self.add_class("-visible")
 
     def hide(self) -> None:
@@ -102,8 +104,6 @@ class SidebarTooltip(Static):
 
     def position_near(self, mouse_x: int, mouse_y: int) -> None:
         """Pin the tooltip to the cursor, clamped inside the screen."""
-        if not self.has_class("-visible"):
-            return
         try:
             screen_w, screen_h = self.screen.size.width, self.screen.size.height
         except Exception:
@@ -259,6 +259,8 @@ class SidebarList(ClickList):
                 category=info.get("category", ""),
                 details=info.get("details", ""),
                 border_title=info.get("border_title", "playlist"),
+                mouse_x=screen_x,
+                mouse_y=screen_y,
             )
             if screen_x is not None and screen_y is not None:
                 self.call_after_refresh(
@@ -294,9 +296,11 @@ class SongTooltip(Static):
         super().__init__(**kwargs)
         self.border_title = "track info"
 
-    def show_song(self, song: "Song", *, playing: bool = False) -> None:
+    def show_song(self, song: "Song", *, playing: bool = False, mouse_x: int | None = None, mouse_y: int | None = None) -> None:
         """Render and display the tooltip for ``song``."""
         self.update(_format_song_tooltip(song, playing=playing))
+        if mouse_x is not None and mouse_y is not None:
+            self.position_near(mouse_x, mouse_y)
         self.add_class("-visible")
 
     def hide(self) -> None:
@@ -304,8 +308,6 @@ class SongTooltip(Static):
 
     def position_near(self, mouse_x: int, mouse_y: int) -> None:
         """Pin the tooltip to the cursor, clamped inside the screen."""
-        if not self.has_class("-visible"):
-            return
         try:
             screen_w, screen_h = self.screen.size.width, self.screen.size.height
         except Exception:
@@ -559,7 +561,7 @@ class QueueList(ClickList):
         if self._hover_overlay is None or idx < 0 or idx >= len(self._songs):
             return
         playing = idx == getattr(self, "_current_index", -1)
-        self._hover_overlay.show_song(self._songs[idx], playing=playing)
+        self._hover_overlay.show_song(self._songs[idx], playing=playing, mouse_x=screen_x, mouse_y=screen_y)
         if screen_x is not None and screen_y is not None:
             # The size just changed with the new content; wait a tick so
             # ``outer_size`` reflects the rendered tooltip before clamping.
