@@ -1111,7 +1111,7 @@ class SignalPathModal(ModalScreen):
         Binding("escape", "dismiss_modal", "close"),
         Binding("enter", "dismiss_modal", "close"),
         Binding("q", "dismiss_modal", "close"),
-        Binding("I", "dismiss_modal", "close"),
+        Binding("ctrl+s", "dismiss_modal", "close"),
     ]
 
     DEFAULT_CSS = """
