@@ -3128,7 +3128,7 @@ def main() -> None:
         args = sys.argv[2:]
         res = send_ipc_command(cmd, *args)
         if res is None:
-            print("theia-player is not currently running.")
+            print("theia-player is not currently running.", file=sys.stderr)
             sys.exit(1)
         if cmd == "status":
             if res.get("status") in ("playing", "paused"):
