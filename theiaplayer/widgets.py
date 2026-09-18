@@ -11,7 +11,6 @@ from __future__ import annotations
 import math
 
 from rich.text import Text
-from textual.containers import Container
 from textual.geometry import Offset
 from textual.widgets import Static
 

@@ -13,10 +13,12 @@ progress pulse, marquee, spinners); each tick repaints only a few cells.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
-import pathlib
 import random
 import subprocess
+import time
+from pathlib import Path
 
 from rich.text import Text
 from textual import on, work
@@ -26,7 +28,7 @@ from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
 
 from ricekit import KitApp, icons, palette
-from ricekit.modals import HelpModal, PickerModal
+from ricekit.modals import HelpModal
 from ricekit.storage import AppDirs
 from ricekit.widgets import NavList, Splitter
 
@@ -169,6 +171,51 @@ HELP_SECTIONS = [
 ]
 
 APP_STARTED: bool = False
+
+def _run_gemini_spotlight_query(album_name: str, artist_name: str) -> dict | None:
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return None
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        prompt = (
+            f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
+            f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
+            f"{{\n"
+            f"  \"album\": \"Nombre del álbum\",\n"
+            f"  \"artist\": \"Nombre del artista\",\n"
+            f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
+            f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
+            f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
+            f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
+            f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
+            f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
+            f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\",\n"
+            f"  \"booklet_notes\": \"Notas extendidas estilo cuadernillo digital (Liner Notes), incluyendo detalles musicales pista por pista o contexto histórico en 2-3 párrafos detallados.\"\n"
+            f"}}\n"
+            f"Sé sumamente preciso y verídico históricamente en los datos."
+        )
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=prompt
+        )
+        if not response or not response.text:
+            return None
+        cleaned_text = response.text.strip()
+        if cleaned_text.startswith("```"):
+            lines_text = cleaned_text.splitlines()
+            if lines_text[0].startswith("```"):
+                lines_text = lines_text[1:]
+            if lines_text[-1].startswith("```"):
+                lines_text = lines_text[:-1]
+            cleaned_text = "\n".join(lines_text).strip()
+        data = json.loads(cleaned_text)
+        data["status"] = "cached"
+        return data
+    except Exception:
+        return None
+
 
 class TheIAPlayerApp(KitApp):
     TITLE = "theia-player"
@@ -948,7 +995,6 @@ class TheIAPlayerApp(KitApp):
                     album_list = await self.client.get_album_list("recent", size=30)
                     if not album_list:
                         return []
-                    import time, random
                     today_str = time.strftime("%Y-%m-%d")
                     rng = random.Random(today_str)
                     selected_album = rng.choice(album_list)
@@ -1003,7 +1049,6 @@ class TheIAPlayerApp(KitApp):
             songs = await self.client.get_all_songs()
             if songs:
                 self.dirs.write_cache("all-songs", {"songs": [s.to_dict() for s in songs]})
-            import random
             random.shuffle(songs)
             return songs
         elif view_id in ("newest", "recent", "frequent"):
@@ -1042,63 +1087,9 @@ class TheIAPlayerApp(KitApp):
         self._spotlight_in_flight.add(album_id)
         existing = self._read_spotlight(album_id) or {}
         try:
-            def run_gemini():
-                from google import genai
-                api_key = get_gemini_api_key()
-                if not api_key:
-                    raise ValueError("No Gemini API key available")
-                client = genai.Client(api_key=api_key)
-                prompt = (
-                    f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
-                    f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
-                    f"{{\n"
-                    f"  \"album\": \"Nombre del álbum\",\n"
-                    f"  \"artist\": \"Nombre del artista\",\n"
-                    f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
-                    f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
-                    f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
-                    f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
-                    f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
-                    f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
-                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\",\n"
-                    f"  \"booklet_notes\": \"Notas extendidas estilo cuadernillo digital (Liner Notes), incluyendo detalles musicales pista por pista o contexto histórico en 2-3 párrafos detallados.\"\n"
-                    f"}}\n"
-                    f"Sé sumamente preciso y verídico históricamente en los datos."
-                )
-                response = client.models.generate_content(
-                    model="gemini-3.5-flash",
-                    contents=prompt
-                )
-                return response.text.strip()
-
             loop = asyncio.get_running_loop()
-            text = await loop.run_in_executor(None, run_gemini)
-            
-            if text:
-                import json
-                cleaned_text = text.strip()
-                if cleaned_text.startswith("```"):
-                    lines_text = cleaned_text.splitlines()
-                    if lines_text[0].startswith("```"):
-                        lines_text = lines_text[1:]
-                    if lines_text[-1].startswith("```"):
-                        lines_text = lines_text[:-1]
-                    cleaned_text = "\n".join(lines_text).strip()
-                
-                try:
-                    data = json.loads(cleaned_text)
-                    data["status"] = "cached"
-                except Exception:
-                    data = {
-                        "album": album_name,
-                        "artist": artist_name,
-                        "year": existing.get("year", "N/A"),
-                        "label": existing.get("label", "N/A"),
-                        "genre": existing.get("genre", "N/A"),
-                        "trivia": cleaned_text,
-                        "status": "cached"
-                    }
-                
+            data = await loop.run_in_executor(None, _run_gemini_spotlight_query, album_name, artist_name)
+            if data:
                 for k in ("album", "artist", "year", "label", "genre", "producer", "composers", "key_musicians"):
                     if not data.get(k) or data.get(k) == "N/A":
                         data[k] = existing.get(k, "N/A")
@@ -1154,61 +1145,15 @@ class TheIAPlayerApp(KitApp):
         if album_id in self._active_spotlight_prefetches:
             return
         self._active_spotlight_prefetches.add(album_id)
-        cache_key = f"spotlight-{album_id}"
         try:
-            def run_gemini():
-                from google import genai
-                api_key = get_gemini_api_key()
-                if not api_key:
-                    return None
-                client = genai.Client(api_key=api_key)
-                prompt = (
-                    f"Devuelve exclusivamente un objeto JSON plano con la siguiente estructura exacta, sin Markdown ni bloques de código, "
-                    f"sobre el álbum '{album_name}' del artista '{artist_name}':\n"
-                    f"{{\n"
-                    f"  \"album\": \"Nombre del álbum\",\n"
-                    f"  \"artist\": \"Nombre del artista\",\n"
-                    f"  \"year\": \"Año de lanzamiento (ej. 1983)\",\n"
-                    f"  \"label\": \"Sello discográfico (ej. Sire Records)\",\n"
-                    f"  \"genre\": \"Géneros musicales (ej. New Wave / Synth-Pop)\",\n"
-                    f"  \"producer\": \"Productor o ingenieros de mezcla (ej. George Martin)\",\n"
-                    f"  \"composers\": \"Compositores principales (ej. Lennon / McCartney)\",\n"
-                    f"  \"key_musicians\": \"Músicos destacados e instrumentos (ej. Ringo Starr (batería))\",\n"
-                    f"  \"trivia\": \"Dato curioso, anécdota de grabación o trivia interesante en un solo párrafo largo y fascinante (en español neutro) de no más de 3-4 líneas.\",\n"
-                    f"  \"booklet_notes\": \"Notas extendidas estilo cuadernillo digital (Liner Notes), incluyendo detalles musicales pista por pista o contexto histórico en 2-3 párrafos detallados.\"\n"
-                    f"}}\n"
-                    f"Sé sumamente preciso y verídico históricamente en los datos."
-                )
-                response = client.models.generate_content(
-                    model="gemini-3.5-flash",
-                    contents=prompt
-                )
-                return response.text.strip()
-
             loop = asyncio.get_running_loop()
-            text = await loop.run_in_executor(None, run_gemini)
-            if text:
-                import json
-                cleaned_text = text.strip()
-                if cleaned_text.startswith("```"):
-                    lines_text = cleaned_text.splitlines()
-                    if lines_text[0].startswith("```"):
-                        lines_text = lines_text[1:]
-                    if lines_text[-1].startswith("```"):
-                        lines_text = lines_text[:-1]
-                    cleaned_text = "\n".join(lines_text).strip()
-
-                try:
-                    data = json.loads(cleaned_text)
-                    data["status"] = "cached"
-                    self._write_spotlight(album_id, data)
-                    
-                    if getattr(self, "_current_spotlight_album_id", None) == album_id:
-                        self._current_spotlight_text = data.get("trivia", "")
-                        if self.view == "home":
-                            self._render_home_spotlight()
-                except Exception:
-                    pass
+            data = await loop.run_in_executor(None, _run_gemini_spotlight_query, album_name, artist_name)
+            if data:
+                self._write_spotlight(album_id, data)
+                if getattr(self, "_current_spotlight_album_id", None) == album_id:
+                    self._current_spotlight_text = data.get("trivia", "")
+                    if self.view == "home":
+                        self._render_home_spotlight()
         except Exception:
             pass
         finally:
@@ -1367,7 +1312,6 @@ class TheIAPlayerApp(KitApp):
             if cached:
                 songs = [Song.from_dict(s) for s in cached.get("songs", [])]
                 if view_id == "shuffle-all":
-                    import random
                     random.shuffle(songs)
                 self._show_songs(songs, title)
 
@@ -1391,7 +1335,6 @@ class TheIAPlayerApp(KitApp):
     async def _load_artist_songs(self, artist: Artist) -> None:
         """Ad-hoc view from search: every song by an artist, flattened."""
         self._record_view_history(self.view)
-        title = f"artist · {artist.name}"
         self.view = f"artist:{artist.id}"
         self._highlight_view(None)
         self.artist_release_filter = "all"
@@ -3080,8 +3023,7 @@ class TheIAPlayerApp(KitApp):
         except Exception:
             pass
 
-    def _get_cached_audio_path(self, song: Song) -> pathlib.Path:
-        import pathlib
+    def _get_cached_audio_path(self, song: Song) -> Path:
         return self._audio_cache_dir / f"{song.id}.{song.suffix or 'mp3'}"
 
     def _cache_audio_async(self, song: Song) -> None:
@@ -3225,16 +3167,16 @@ def main() -> None:
         
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)
-    except Exception as e:
+    except Exception:
         # CAPTURAR CUALQUIER EXCEPCIÓN DEL ARRANQUE Y GUARDARLA AL LOG
         try:
             with open(log_path, "a", encoding="utf-8") as log_file:
-                log_file.write(f"\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
+                log_file.write("\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
                 traceback.print_exc(file=log_file)
         except Exception:
             pass
         # Tambien imprimirlo a stderr real por si la Alternate Screen se cierra para que el usuario tenga el traceback en consola
-        sys.stderr.write(f"\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
+        sys.stderr.write("\n🚨 CRASH CRÍTICO EN EL ARRANQUE:\n")
         traceback.print_exc()
         sys.exit(1)
 

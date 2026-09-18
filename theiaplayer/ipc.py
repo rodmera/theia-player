@@ -6,9 +6,8 @@ import asyncio
 import json
 import os
 import socket
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from theiaplayer.app import TheIAPlayerApp

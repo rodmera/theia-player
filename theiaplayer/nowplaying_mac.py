@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from theiaplayer.models import Song
@@ -22,7 +22,6 @@ MAC_MEDIA_AVAILABLE = False
 # MediaPlayer framework is exclusive to macOS
 if sys.platform == "darwin":
     try:
-        import objc
         from Foundation import NSDictionary, NSDate, NSRunLoop
         from AppKit import NSImage
         from MediaPlayer import (
