@@ -55,6 +55,22 @@ VIEWS = [
 ]
 VIEW_LABELS = dict(VIEWS)
 
+ALBUM_VIEWS = [
+    ("albums-all", "todos"),
+    ("albums-newest", "recientes"),
+    ("albums-frequent", "más escuchados"),
+    ("albums-random", "aleatorio"),
+    ("albums-starred", "favoritos"),
+]
+ALBUM_VIEW_LABELS = dict(ALBUM_VIEWS)
+ALBUM_LIST_TYPES = {
+    "albums-all": "alphabeticalByName",
+    "albums-newest": "newest",
+    "albums-frequent": "frequent",
+    "albums-random": "random",
+    "albums-starred": "starred",
+}
+
 
 _CACHED_GEMINI_KEY: str | None = None
 
@@ -258,6 +274,7 @@ class TheIAPlayerApp(KitApp):
         self.view: str = "all-songs"  # sidebar view id (or "pl:<id>", or "artist:<id>")
         self._view_history: list[str] = []  # view navigation history stack for backspace/escape/back
         self._songs: list[Song] = []  # what the tracks pane shows
+        self._albums: list[Album] = []  # album rows shown in albums-* views
         self._playlists: list[Playlist] = []
         # playback bookkeeping
         self._scrobbled = False
@@ -347,7 +364,7 @@ class TheIAPlayerApp(KitApp):
         self.query_one("#art-panel", CoverArt).border_title = "cover"
         self.query_one("#queue-panel").border_title = "queue"
         saved_view = state.get("view", "all-songs")
-        if saved_view in VIEW_LABELS or saved_view.startswith(("pl:", "artist:", "album:")):
+        if saved_view in VIEW_LABELS or saved_view in ALBUM_VIEW_LABELS or saved_view.startswith(("pl:", "artist:", "album:")):
             self.view = saved_view
 
         pcfg = self._pcfg
@@ -588,6 +605,31 @@ class TheIAPlayerApp(KitApp):
                     "border_title": "vista",
                 }
 
+            # Render Álbumes (album browsing section)
+            options.append(Option(Text(" "), disabled=True))
+            options.append(Option(Text(" álbumes", style=f"bold {palette.dim}"), disabled=True))
+            album_glyphs = {
+                "albums-all": "💿",
+                "albums-newest": "✨",
+                "albums-frequent": "🔥",
+                "albums-random": "🎲",
+                "albums-starred": icons.STAR,
+            }
+            for view_id, label in ALBUM_VIEWS:
+                row = Text(no_wrap=True, overflow="ellipsis")
+                glyph = album_glyphs.get(view_id, "💿")
+                color = palette.mauve
+                row.append(f" {glyph} ", style=color)
+                row.append(label, style=palette.text)
+                options.append(Option(row, id=view_id))
+
+                tooltip_map[view_id] = {
+                    "title": f"Álbumes · {label}",
+                    "category": "Biblioteca",
+                    "details": "Explora la biblioteca por álbumes",
+                    "border_title": "álbumes",
+                }
+
             # Render Pinned Favorites (Favorites Section)
             state = self.dirs.load_state()
             pins = state.get("pins", [])
@@ -794,6 +836,8 @@ class TheIAPlayerApp(KitApp):
                         pid = target_id.split(":", 1)[1]
                         playlist = next((p for p in self._playlists if p.id == pid), None)
                         target_name = playlist.name if playlist else "playlist"
+                    elif target_id in ALBUM_VIEW_LABELS:
+                        target_name = f"álbumes · {ALBUM_VIEW_LABELS[target_id]}"
                     else:
                         target_name = next((label for vid, label in VIEWS if vid == target_id), target_id)
         else:
@@ -806,6 +850,8 @@ class TheIAPlayerApp(KitApp):
                 target_name = panel.border_title or "album"
                 if " · " in target_name:
                     target_name = target_name.split(" · ", 1)[1]
+            elif target_id in ALBUM_VIEW_LABELS:
+                target_name = f"álbumes · {ALBUM_VIEW_LABELS[target_id]}"
             elif target_id.startswith("pl:"):
                 pid = target_id.split(":", 1)[1]
                 playlist = next((p for p in self._playlists if p.id == pid), None)
@@ -882,6 +928,8 @@ class TheIAPlayerApp(KitApp):
             )
         elif real_id == "shuffle-all":
             self._shuffle_everything()
+        elif real_id in ALBUM_VIEW_LABELS:
+            self._load_view(real_id)
         else:
             self._play_view_from_top(real_id)
 
@@ -982,6 +1030,9 @@ class TheIAPlayerApp(KitApp):
         elif view_id.startswith("pl:"):
             pid = view_id.split(":", 1)[1]
             return await self.client.get_playlist_songs(pid)
+        elif view_id.startswith("album:"):
+            aid = view_id.split(":", 1)[1]
+            return await self.client.get_album_songs(aid)
         return []
 
     @work(exclusive=True, group="spotlight_gen")
@@ -1179,6 +1230,10 @@ class TheIAPlayerApp(KitApp):
             pid = view_id.split(":", 1)[1]
             playlist = next((p for p in self._playlists if p.id == pid), None)
             return playlist.name if playlist else "playlist"
+        if view_id in ALBUM_VIEW_LABELS:
+            return f"álbumes · {ALBUM_VIEW_LABELS[view_id]}"
+        if view_id.startswith("album:"):
+            return f"album · {getattr(self, '_current_album_name', '') or 'álbum'}"
         return VIEW_LABELS.get(view_id, "tracks")
 
     def _apply_filters(self, songs: list[Song]) -> list[Song]:
@@ -1191,6 +1246,8 @@ class TheIAPlayerApp(KitApp):
         )
 
     def _get_tracks_options(self) -> list[Option]:
+        if self.view in ALBUM_VIEW_LABELS:
+            return self._get_album_options()
         options = []
         if self.view == "home" and getattr(self, "_current_spotlight_album_id", None):
             cached = self._read_spotlight(self._current_spotlight_album_id)
@@ -1269,6 +1326,10 @@ class TheIAPlayerApp(KitApp):
         if self._songs:
             await asyncio.sleep(0.12)  # superseded while the cursor is moving
         title = self._tracks_title(view_id)
+
+        if view_id in ALBUM_VIEW_LABELS:
+            await self._load_albums_view(view_id)
+            return
 
         cache_map = {
             "home": "home",
@@ -1374,6 +1435,65 @@ class TheIAPlayerApp(KitApp):
         self._filter_and_show_artist_songs()
         self.query_one("#tracks-list", ClickList).focus()
 
+    # ── album browsing views (albums-*) ───────────────────────────────
+    async def _load_albums_view(self, view_id: str) -> None:
+        """Load an albums-* view: list albums in the tracks pane."""
+        title = self._tracks_title(view_id)
+        cache_key = f"albums-{view_id}"
+        cached = self.dirs.read_cache(cache_key)
+        if cached:
+            albums = [Album.from_dict(a) for a in cached.get("albums", [])]
+            self._show_albums(albums, title)
+        try:
+            list_type = ALBUM_LIST_TYPES.get(view_id, "alphabeticalByName")
+            albums = await self.client.get_album_list(list_type, size=500)
+        except Exception as e:
+            self._connection_trouble(e)
+            return
+        self.dirs.write_cache(cache_key, {"albums": [a.to_dict() for a in albums]})
+        if self.view == view_id:
+            self._show_albums(albums, title)
+
+    def _show_albums(self, albums: list[Album], title: str) -> None:
+        self._albums = albums
+        panel = self.query_one("#tracks-panel")
+        panel.border_title = title
+        self._fill("#tracks-list", self._get_album_options(), "#tracks-panel")
+
+    def _get_album_options(self) -> list[Option]:
+        options: list[Option] = []
+        for a in self._albums:
+            row = Text(no_wrap=True, overflow="ellipsis")
+            row.append("  💿 ", style=palette.mauve)
+            row.append(a.name, style=palette.text)
+            if a.artist:
+                row.append(f"  {a.artist}", style=palette.dim)
+            if a.year:
+                row.append(f" · {a.year}", style=palette.faint)
+            if a.song_count:
+                row.append(f" · {a.song_count}♪", style=palette.vfaint)
+            options.append(Option(row, id=f"alb:{a.id}"))
+        return options
+
+    @work(exclusive=True, group="songs")
+    async def _play_album(self, album: Album) -> None:
+        """Reproduce un álbum completo desde el inicio (vista album:)."""
+        self._record_view_history(self.view)
+        try:
+            songs = await self.client.get_album_songs(album.id)
+        except Exception as e:
+            self._connection_trouble(e)
+            return
+        if not songs:
+            self.notify(f"álbum vacío: {album.name}", timeout=3)
+            return
+        self.view = f"album:{album.id}"
+        self._current_album_name = album.name
+        self._highlight_view(None)
+        self._show_songs(songs, f"album · {album.name}")
+        self._play_songs(songs, 0)
+        self.query_one("#tracks-list", ClickList).focus()
+
     @work(exclusive=True, group="lib")
     async def _load_playlists(self) -> None:
         try:
@@ -1457,12 +1577,24 @@ class TheIAPlayerApp(KitApp):
         # Only change cover art on highlight if the tracks list actually has focus
         if not self.query_one("#tracks-list").has_focus:
             return
+        oid = event.option.id
+        if oid and oid.startswith("alb:"):
+            album = next((a for a in self._albums if a.id == oid.split(":", 1)[1]), None)
+            if album is not None and album.cover_art:
+                self._load_art(album.cover_art, f"album-{album.id}")
+            return
         song = next((s for s in self._songs if s.id == event.option.id), None)
         if song is not None and song.cover_art:
             self._load_art(song.cover_art, f"song-{song.id}")
 
     @on(OptionList.OptionSelected, "#tracks-list")
     def _track_selected(self, event: OptionList.OptionSelected) -> None:
+        oid = event.option.id
+        if oid and oid.startswith("alb:"):
+            album = next((a for a in self._albums if a.id == oid.split(":", 1)[1]), None)
+            if album is not None:
+                self._play_album(album)
+            return
         idx = next((i for i, s in enumerate(self._songs) if s.id == event.option.id), None)
         if idx is not None:
             self._play_songs(self._songs, idx)
@@ -2422,6 +2554,7 @@ class TheIAPlayerApp(KitApp):
     async def _load_album(self, album_id: str, album_name: str) -> None:
         title = f"album · {album_name}"
         self.view = f"album:{album_id}"
+        self._current_album_name = album_name
         self._highlight_view(None)
         try:
             songs = await self.client.get_album_songs(album_id)
@@ -2592,6 +2725,11 @@ class TheIAPlayerApp(KitApp):
         if focused is None or focused.id != "tracks-list":
             return
         ol = self.query_one("#tracks-list", NavList)
+        if self.view in ALBUM_VIEW_LABELS:
+            if ol.highlighted is not None and ol.highlighted < len(self._albums):
+                album = self._albums[ol.highlighted]
+                self._enqueue_album(album, play_next=play_next)
+            return
         if ol.highlighted is None or ol.highlighted >= len(self._songs):
             return
         if self._selection:
@@ -2801,22 +2939,28 @@ class TheIAPlayerApp(KitApp):
             self._render_queue()
             self._persist_queue()
             self.notify(f"queued {'next: ' if play_next else ''}{song.title}", timeout=2)
+        elif kind == "album-queue":
+            _, album, play_next = result
+            self._enqueue_album(album, play_next=play_next)
         elif kind == "album":
             self._enqueue_album(result[1])
         elif kind == "artist":
             self._load_artist_songs(result[1])
 
     @work(group="mutate")
-    async def _enqueue_album(self, album: Album) -> None:
+    async def _enqueue_album(self, album: Album, play_next: bool = False) -> None:
         try:
             songs = await self.client.get_album_songs(album.id)
         except Exception as e:
             self._connection_trouble(e)
             return
-        self.queue.add(songs)
+        if play_next:
+            self.queue.add_next(songs)
+        else:
+            self.queue.add(songs)
         self._render_queue()
         self._persist_queue()
-        self.notify(f"queued album: {album.name}", timeout=3)
+        self.notify(f"queued {'next: ' if play_next else ''}album: {album.name}", timeout=3)
 
     # ── misc actions ──────────────────────────────────────────────────
     def action_focus_panel(self, direction: int) -> None:

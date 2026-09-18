@@ -24,8 +24,8 @@ via [ricekit](https://github.com/Gheat1/ricekit) — and everything moves.
   belong
 - **playlists you can actually edit** — create one from the sidebar, add
   any track with `p`
-- **search that queues** — `enter` plays, `a` queues, `A` slots it right
-  after the current song
+- **search that queues with category tabs** — global search (`/`) debounced with category tabs (`todas`, `canciones`, `álbumes`, `artistas`), `enter` plays immediately, `a` queues (songs or full albums), `A` slots right after the current song, `←`/`→` cycles categories
+- **album browsing** — explore library by albums directly from sidebar (`todos`, `recientes`, `más escuchados`, `aleatorio`, `favoritos`), queue entire albums with `a`/`A`
 - **real cover art** — kitty graphics protocol or sixel where available,
   truecolor half-cells everywhere else (`NAVITUI_ART=auto|tgp|sixel|halfcell|unicode|off`);
   preserves correct aspect ratio and auto-centers even when resizing the side panel

@@ -7,8 +7,9 @@ server and only stored (chmod 600) once a ping succeeds.
 
 from __future__ import annotations
 
+import asyncio
 from rich.text import Text
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -509,29 +510,41 @@ class SpotlightModal(ModalScreen):
         self.app.action_seek(30)
 
 class SearchModal(ModalScreen):
-    """Global search over artists, albums and songs — debounced, grouped.
+    """Global search over artists, albums and songs — debounced, grouped with category tabs.
 
     Dismisses with ("song", songs, index) | ("song-queue", song, play_next)
-    | ("album", album) | ("artist", artist) | None.
+    | ("album-queue", album, play_next) | ("album", album) | ("artist", artist) | None.
     """
 
     BINDINGS = [
         Binding("escape", "cancel", show=False),
         Binding("down", "to_list", show=False),
-        Binding("a", "queue_song(False)", show=False),
-        Binding("A", "queue_song(True)", show=False),
+        Binding("a", "queue_item(False)", show=False),
+        Binding("A", "queue_item(True)", show=False),
+        Binding("left", "prev_tab", show=False),
+        Binding("right", "next_tab", show=False),
+        Binding("h", "prev_tab", show=False),
+        Binding("l", "next_tab", show=False),
+        Binding("ctrl+left", "prev_tab", show=False),
+        Binding("ctrl+right", "next_tab", show=False),
+        Binding("ctrl+one", "set_tab('all')", show=False),
+        Binding("ctrl+two", "set_tab('songs')", show=False),
+        Binding("ctrl+three", "set_tab('albums')", show=False),
+        Binding("ctrl+four", "set_tab('artists')", show=False),
     ]
 
     DEFAULT_CSS = """
     SearchModal { align: center middle; background: $kit-overlay; }
     SearchModal #search-box {
-        width: 72; height: auto; max-height: 80%;
+        width: 72; height: 80%; max-height: 26; min-height: 12;
         background: $kit-modal-bg; border: round $kit-border-focus; padding: 1 1;
+        overflow-y: hidden;
     }
     SearchModal Input { background: transparent; border: round $kit-border; }
     SearchModal Input:focus { border: round $kit-border-focus; }
+    SearchModal #search-tabs { height: 1; margin: 0 1; }
     SearchModal #search-results {
-        height: auto; max-height: 24;
+        height: 1fr;
         text-wrap: nowrap; text-overflow: ellipsis;
     }
     SearchModal #search-hint { padding: 1 1 0 1; }
@@ -541,21 +554,74 @@ class SearchModal(ModalScreen):
         super().__init__()
         self._initial_query = initial_query
         self._results = SearchResults()
+        self._active_tab = "all"
 
     def compose(self) -> ComposeResult:
         with Vertical(id="search-box"):
             yield Input(placeholder="search the library", id="search-input")
+            yield Static(self._render_tabs(), id="search-tabs")
             yield NavList(id="search-results")
             yield Static(self._hint(), id="search-hint")
 
+    def _render_tabs(self) -> Text:
+        t = Text()
+        counts = {
+            "all": len(self._results.songs) + len(self._results.albums) + len(self._results.artists),
+            "songs": len(self._results.songs),
+            "albums": len(self._results.albums),
+            "artists": len(self._results.artists),
+        }
+        labels = [
+            ("all", f"todas ({counts['all']})"),
+            ("songs", f"canciones ({counts['songs']})"),
+            ("albums", f"álbumes ({counts['albums']})"),
+            ("artists", f"artistas ({counts['artists']})"),
+        ]
+        for idx, (cid, label) in enumerate(labels):
+            if idx > 0:
+                t.append("  ·  ", style=palette.vfaint)
+            if self._active_tab == cid:
+                t.append(f"[{label}]", style=f"bold {palette.blue}")
+            else:
+                t.append(f" {label} ", style=palette.dim)
+        return t
+
     def _hint(self) -> Text:
         t = Text()
-        for key, desc in (("enter", "play"), ("a", "queue"), ("A", "play next"), ("esc", "close")):
-            if key != "enter":
+        hints = (
+            ("enter", "play"),
+            ("a", "queue"),
+            ("A", "play next"),
+            ("←/→", "tab"),
+            ("esc", "close"),
+        )
+        for i, (key, desc) in enumerate(hints):
+            if i > 0:
                 t.append("  ·  ", style=palette.vfaint)
             t.append(key, style=palette.blue)
             t.append(f" {desc}", style=palette.dim)
         return t
+
+    def action_next_tab(self) -> None:
+        tab_ids = ["all", "songs", "albums", "artists"]
+        idx = tab_ids.index(self._active_tab)
+        self._active_tab = tab_ids[(idx + 1) % len(tab_ids)]
+        self._render_results()
+
+    def action_prev_tab(self) -> None:
+        tab_ids = ["all", "songs", "albums", "artists"]
+        idx = tab_ids.index(self._active_tab)
+        self._active_tab = tab_ids[(idx - 1) % len(tab_ids)]
+        self._render_results()
+
+    def action_set_tab(self, tab: str) -> None:
+        if tab in ("all", "songs", "albums", "artists") and tab != self._active_tab:
+            self._active_tab = tab
+            self._render_results()
+
+    @on(events.Click, "#search-tabs")
+    def _tabs_clicked(self, event: events.Click) -> None:
+        self.action_next_tab()
 
     def _highlighted_song(self):
         """The Song under the results cursor, or None."""
@@ -567,10 +633,24 @@ class SearchModal(ModalScreen):
             return self._results.songs[int(option.id.split(":", 1)[1])]
         return None
 
-    def action_queue_song(self, play_next: bool) -> None:
-        song = self._highlighted_song()
-        if song is not None:
+    def action_queue_item(self, play_next: bool) -> None:
+        ol = self.query_one("#search-results", NavList)
+        if ol.highlighted is None:
+            return
+        option = ol.get_option_at_index(ol.highlighted)
+        if not option.id:
+            return
+        kind, _, idx_str = option.id.partition(":")
+        idx = int(idx_str)
+        if kind == "song":
+            song = self._results.songs[idx]
             self.dismiss(("song-queue", song, play_next))
+        elif kind == "album":
+            album = self._results.albums[idx]
+            self.dismiss(("album-queue", album, play_next))
+
+    def action_queue_song(self, play_next: bool) -> None:
+        self.action_queue_item(play_next)
 
     def on_mount(self) -> None:
         pop_in(self.query_one("#search-box"))
@@ -580,22 +660,42 @@ class SearchModal(ModalScreen):
         if self._initial_query:
             inp.value = self._initial_query
             inp.cursor_position = len(self._initial_query)
-            self._search(self._initial_query)
+            self._search(self._initial_query, debounce=False)
 
     @on(Input.Changed, "#search-input")
     def _changed(self, event: Input.Changed) -> None:
         query = event.value.strip()
         if len(query) >= 2:
-            self._search(query)
+            self._search(query, debounce=True)
         else:
-            self.query_one("#search-results", NavList).clear_options()
+            self.workers.cancel_group(self, "search")
+            self._results = SearchResults()
+            self._render_results()
+
+    @on(Input.Submitted, "#search-input")
+    def _submitted(self, event: Input.Submitted) -> None:
+        ol = self.query_one("#search-results", NavList)
+        if ol.highlighted is not None and ol.option_count > 0:
+            option = ol.get_option_at_index(ol.highlighted)
+            if not option.disabled:
+                self._select_option(option.id)
+                return
+        query = event.value.strip()
+        if len(query) >= 2:
+            self._search(query, debounce=False)
 
     @work(exclusive=True, group="search")
-    async def _search(self, query: str) -> None:
+    async def _search(self, query: str, debounce: bool = True) -> None:
+        if debounce:
+            await asyncio.sleep(0.20)
         try:
-            self._results = await self.app.client.search(query)
+            results = await self.app.client.search(query)
         except Exception:
             return
+        inp = self.query_one("#search-input", Input)
+        if inp.value.strip() != query:
+            return
+        self._results = results
         self._render_results()
 
     def _render_results(self) -> None:
@@ -604,19 +704,32 @@ class SearchModal(ModalScreen):
         res = self._results
         opts: list[Option] = []
 
+        try:
+            tabs_widget = self.query_one("#search-tabs", Static)
+            tabs_widget.update(self._render_tabs())
+        except Exception:
+            pass
+
         def header(label: str) -> None:
             opts.append(Option(Text(f" {label}", style=f"bold {palette.dim}"), disabled=True))
 
-        if res.songs:
-            header("songs")
+        show_songs = self._active_tab in ("all", "songs")
+        show_albums = self._active_tab in ("all", "albums")
+        show_artists = self._active_tab in ("all", "artists")
+
+        if show_songs and res.songs:
+            if self._active_tab == "all":
+                header("canciones")
             for i, s in enumerate(res.songs):
                 row = Text("  ", no_wrap=True, overflow="ellipsis")
                 row.append(anim.NOTE_FRAMES[0] + " ", style=palette.blue)
                 row.append(s.title, style=palette.text)
                 row.append(f"  {s.artist}", style=palette.dim)
                 opts.append(Option(row, id=f"song:{i}"))
-        if res.albums:
-            header("albums")
+
+        if show_albums and res.albums:
+            if self._active_tab == "all":
+                header("álbumes")
             for i, a in enumerate(res.albums):
                 row = Text("  ", no_wrap=True, overflow="ellipsis")
                 row.append("◉ ", style=palette.mauve)
@@ -625,14 +738,17 @@ class SearchModal(ModalScreen):
                 if a.year:
                     row.append(f" · {a.year}", style=palette.faint)
                 opts.append(Option(row, id=f"album:{i}"))
-        if res.artists:
-            header("artists")
+
+        if show_artists and res.artists:
+            if self._active_tab == "all":
+                header("artistas")
             for i, a in enumerate(res.artists):
                 row = Text("  ", no_wrap=True, overflow="ellipsis")
                 row.append(f"{icons.USER} ", style=palette.peach)
                 row.append(a.name, style=palette.text)
                 row.append(f"  {a.album_count} albums", style=palette.dim)
                 opts.append(Option(row, id=f"artist:{i}"))
+
         if not opts:
             opts.append(Option(Text("  no matches", style=palette.dim), disabled=True))
         ol.add_options(opts)
@@ -645,9 +761,7 @@ class SearchModal(ModalScreen):
         if ol.option_count:
             ol.focus()
 
-    @on(OptionList.OptionSelected, "#search-results")
-    def _selected(self, event: OptionList.OptionSelected) -> None:
-        oid = event.option.id
+    def _select_option(self, oid: str | None) -> None:
         if not oid:
             return
         kind, _, idx = oid.partition(":")
@@ -658,6 +772,10 @@ class SearchModal(ModalScreen):
             self.dismiss(("album", self._results.albums[i]))
         elif kind == "artist":
             self.dismiss(("artist", self._results.artists[i]))
+
+    @on(OptionList.OptionSelected, "#search-results")
+    def _selected(self, event: OptionList.OptionSelected) -> None:
+        self._select_option(event.option.id)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -1057,7 +1175,7 @@ class PlaylistPickerModal(ModalScreen):
             options.append(Option(row, id=f"pl:{p.id}"))
             
         options.append(Option(Text(f"  {icons.PLUS} new playlist…", style=palette.sub), id="pl-new"))
-        options.append(Option(Text(f"  {icons.LIST} Add to selected ({len(self.selected_ids)})", style=palette.accent), id="pl-done"))
+        options.append(Option(Text(f"  {icons.LIST} Add to selected ({len(self.selected_ids)})", style=palette.mauve), id="pl-done"))
         
         ol.clear_options()
         ol.add_options(options)

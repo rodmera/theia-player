@@ -56,6 +56,7 @@ class SubsonicClient:
         self._salt = salt
         self._art_dir = art_dir
         self._http = httpx.AsyncClient(timeout=20, follow_redirects=True)
+        self._search_cache: dict[str, SearchResults] = {}
 
     async def close(self) -> None:
         await self._http.aclose()
@@ -132,6 +133,9 @@ class SubsonicClient:
         )
 
     async def search(self, query: str, limit: int = 20) -> SearchResults:
+        cache_key = f"{query.strip().lower()}:{limit}"
+        if hasattr(self, "_search_cache") and cache_key in self._search_cache:
+            return self._search_cache[cache_key]
         body = await self._get(
             "search3",
             query=query,
@@ -140,11 +144,16 @@ class SubsonicClient:
             songCount=limit * 2,
         )
         result = body.get("searchResult3", {})
-        return SearchResults(
+        res = SearchResults(
             artists=[Artist.from_api(a) for a in result.get("artist", [])],
             albums=[Album.from_api(a) for a in result.get("album", [])],
             songs=[Song.from_api(s) for s in result.get("song", [])],
         )
+        if hasattr(self, "_search_cache"):
+            if len(self._search_cache) >= 100:
+                self._search_cache.pop(next(iter(self._search_cache)))
+            self._search_cache[cache_key] = res
+        return res
 
     async def get_random_songs(self, size: int = 50) -> list[Song]:
         body = await self._get("getRandomSongs", size=size)

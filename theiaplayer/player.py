@@ -62,6 +62,7 @@ class Player:
             video=False,
             terminal=False,
             idle=True,
+            stop_screensaver=False,
             audio_client_name="theia-player",
             replaygain=replaygain,
             gapless_audio=gapless,
