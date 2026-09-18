@@ -149,11 +149,51 @@ Si deseas empaquetar el reproductor en un **único archivo binario ejecutable de
 | `I` | listening stats & insights |
 | `L` | letra sincronizada (LRC) de la canción actual |
 
+## control remoto CLI e integración multimedia (Wayland / Hyprland / Omarchy)
+
+`theia-player` incluye un servidor IPC asíncrono sobre sockets de dominio Unix (`/tmp/theia-player-<uid>.sock`). Puedes controlar la instancia activa de forma remota sin enfocar la terminal:
+
+```sh
+theia-player play-pause    # alterna entre reproducción y pausa
+theia-player pause         # pausa la reproducción
+theia-player play          # reanuda la reproducción
+theia-player next          # salta a la siguiente pista
+theia-player prev          # vuelve a la pista anterior
+theia-player stop          # detiene y vacía el reproductor
+theia-player status        # imprime metadatos del track y estado en texto plano o JSON
+theia-player vol +5        # sube el volumen 5% (o -5 para bajar)
+```
+
+### Vinculación de Teclas Físicas con Fallback Dinámico
+
+En entornos como **Hyprland** u **Omarchy**, los navegadores basados en Chromium (Brave, Chrome) suelen secuestrar las teclas multimedia del sistema operativo mediante `HardwareMediaKeyHandling`. Para priorizar `theia-player` sin perder el control del navegador cuando el TUI esté cerrado:
+
+1. **Evitar secuestro en Brave/Chromium:** Agregar a `~/.config/brave-flags.conf` y `~/.config/chromium-flags.conf`:
+   ```
+   --disable-features=HardwareMediaKeyHandling
+   ```
+2. **Configurar atajos en Hyprland (`~/.config/hypr/bindings.lua`):**
+   ```lua
+   -- Desvincular bindings por defecto
+   hl.unbind("XF86AudioPlay")
+   hl.unbind("XF86AudioPause")
+   hl.unbind("XF86AudioNext")
+   hl.unbind("XF86AudioPrev")
+
+   -- Re-enlazar con operador de contingencia (||)
+   o.bind("XF86AudioPlay", "theia-player: Play/Pause", "theia-player play-pause || omarchy-shell media playPause", { locked = true })
+   o.bind("XF86AudioPause", "theia-player: Pause", "theia-player pause || omarchy-shell media pause", { locked = true })
+   o.bind("XF86AudioNext", "theia-player: Siguiente", "theia-player next || omarchy-shell media next", { locked = true })
+   o.bind("XF86AudioPrev", "theia-player: Anterior", "theia-player prev || omarchy-shell media previous", { locked = true })
+   ```
+
+*Resultado:* Si `theia-player` está abierto, responde instantáneamente en <5ms por su socket IPC. Si está cerrado, la llamada falla de inmediato y el operador `||` delega el evento al reproductor web de Brave o a cualquier otro cliente MPRIS del sistema.
+
 ## desarrollo y pruebas
 
 El proyecto cuenta con dos suites de pruebas para garantizar el funcionamiento y robustez del reproductor:
 
-### 1. Pruebas Unitarias (`pytest`) — 352 tests
+### 1. Pruebas Unitarias (`pytest`) — 393 tests
 
 Para validar la lógica pura del reproductor (cola de reproducción, caché de carátulas, conversión de formatos de color como CMYK, normalización de configuraciones Go-subtui, dataclasses de dominio, contrato de `BINDINGS`, driver de audio, guardas de MPRIS, animaciones, widgets, mock del cliente Subsonic con `httpx.MockTransport`, etc.):
 
