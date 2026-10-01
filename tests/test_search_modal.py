@@ -42,7 +42,10 @@ async def test_search_modal_scrolling_does_not_overflow_box():
     """Regression test: `#search-box` must never scroll or clip `#search-results`.
     Moving down through options must increment `ol.scroll_offset.y` while keeping
     `box.scroll_offset.y == 0` and every highlighted item inside the visible viewport."""
-    app = TheIAPlayerApp(client=MagicMock())
+    mock_player = MagicMock()
+    mock_player.get_audio_devices.return_value = []
+    mock_player.get_current_audio_device.return_value = "auto"
+    app = TheIAPlayerApp(client=MagicMock(), player=mock_player)
     async with app.run_test(size=(80, 24)) as pilot:
         sm = SearchModal()
         await app.push_screen(sm)
@@ -69,7 +72,10 @@ async def test_search_modal_scrolling_does_not_overflow_box():
 @pytest.mark.asyncio
 async def test_search_modal_category_tabs():
     """Test switching tabs filters results between all, songs, albums, and artists."""
-    app = TheIAPlayerApp(client=MagicMock())
+    mock_player = MagicMock()
+    mock_player.get_audio_devices.return_value = []
+    mock_player.get_current_audio_device.return_value = "auto"
+    app = TheIAPlayerApp(client=MagicMock(), player=mock_player)
     async with app.run_test(size=(80, 24)) as pilot:
         sm = SearchModal()
         await app.push_screen(sm)

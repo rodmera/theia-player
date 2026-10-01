@@ -130,7 +130,8 @@ def test_no_duplicate_keys_in_static_bindings():
     is almost always a copy-paste mistake.
     """
     keys: list[str] = []
-    for b in TheIAPlayerApp.BINDINGS:
+    bindings = getattr(TheIAPlayerApp, "STATIC_BINDINGS", TheIAPlayerApp.BINDINGS)
+    for b in bindings:
         keys.extend(k.strip() for k in b.key.split(","))
     dupes = sorted({k for k in keys if keys.count(k) > 1})
     assert not dupes, f"Duplicate key strings in TheIAPlayerApp.BINDINGS: {dupes}"

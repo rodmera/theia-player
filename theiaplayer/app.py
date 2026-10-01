@@ -273,6 +273,7 @@ class TheIAPlayerApp(KitApp):
         Binding("alt+o", "filter_all", "all releases", show=False),
         Binding("q", "quit", "quit"),
     ]
+    STATIC_BINDINGS = tuple(BINDINGS)
 
     CSS = """
     #topbar { height: 1; padding: 0 1; }
@@ -298,7 +299,7 @@ class TheIAPlayerApp(KitApp):
     }
     """
 
-    def __init__(self, client: SubsonicClient | None = None, ao: str | None = None) -> None:
+    def __init__(self, client: SubsonicClient | None = None, ao: str | None = None, player: Any | None = None) -> None:
         # Load config BEFORE super().__init__() so we can patch class BINDINGS
         self.dirs = AppDirs("theia-player")
         self._audio_cache_dir = self.dirs.cache_dir / "audio"
@@ -312,6 +313,7 @@ class TheIAPlayerApp(KitApp):
         self._pcfg = _pcfg
         self.client: SubsonicClient | None = client
         self._ao = ao
+        self._initial_player = player
         self.queue = PlayQueue()
         self.player = None
         self.mpris: mprismod.MprisController | None = None
@@ -335,6 +337,7 @@ class TheIAPlayerApp(KitApp):
         self.private_mode: bool = False
         self.autoplay_enabled: bool = bool(_pcfg.get("autoplay", True))
         self._autoplay_loading: bool = False
+        self._playback_source: str = "other"
         self.artist_release_filter: str = "all"
         self._current_artist_albums: list[Album] = []
         self._current_artist_songs: list[Song] = []
@@ -415,16 +418,19 @@ class TheIAPlayerApp(KitApp):
             self.view = saved_view
 
         pcfg = self._pcfg
-        self.player = playermod.create_player(
-            self._mpv_position,
-            self._mpv_track_end,
-            ao=self._ao,
-            replaygain=pcfg["replaygain"],
-            gapless=pcfg["gapless"],
-            replaygain_preamp=float(pcfg.get("replaygain_preamp", 0)),
-            replaygain_fallback=float(pcfg.get("replaygain_fallback", -6)),
-            audio_exclusive=bool(pcfg.get("audio_exclusive", False)),
-        )
+        if self._initial_player is not None:
+            self.player = self._initial_player
+        else:
+            self.player = playermod.create_player(
+                self._mpv_position,
+                self._mpv_track_end,
+                ao=self._ao,
+                replaygain=pcfg["replaygain"],
+                gapless=pcfg["gapless"],
+                replaygain_preamp=float(pcfg.get("replaygain_preamp", 0)),
+                replaygain_fallback=float(pcfg.get("replaygain_fallback", -6)),
+                audio_exclusive=bool(pcfg.get("audio_exclusive", False)),
+            )
         default_vol = pcfg["default_volume"]
         saved_vol = int(state.get("volume", default_vol if default_vol >= 0 else 80))
         saved_vol = round(saved_vol / 5) * 5
@@ -464,6 +470,7 @@ class TheIAPlayerApp(KitApp):
         cached_queue = self.dirs.read_cache("queue")
         if cached_queue:
             self.queue = PlayQueue.from_dict(cached_queue)
+            self._playback_source = str(cached_queue.get("playback_source", "other"))
             self._resume_position = float(cached_queue.get("position", 0.0))
             now.set_song(self.queue.current)
             now.set_progress(self._resume_position, self.queue.current.duration if self.queue.current else 0)
@@ -1162,6 +1169,12 @@ class TheIAPlayerApp(KitApp):
     @work(exclusive=True, group="songs")
     async def _play_view_from_top(self, view_id: str) -> None:
         self.notify("loading playlist…", timeout=2)
+        if view_id.startswith("pl:"):
+            self._playback_source = "playlist"
+        elif view_id.startswith("album:") or view_id in ALBUM_VIEW_LABELS:
+            self._playback_source = "album"
+        else:
+            self._playback_source = view_id
         try:
             songs = await self._fetch_songs_for_view(view_id)
             if songs:
@@ -1430,6 +1443,7 @@ class TheIAPlayerApp(KitApp):
         if not songs:
             self.notify(f"álbum vacío: {album.name}", timeout=3)
             return
+        self._playback_source = "album"
         self.view = f"album:{album.id}"
         self._current_album_name = album.name
         self._highlight_view(None)
@@ -1540,6 +1554,12 @@ class TheIAPlayerApp(KitApp):
             return
         idx = next((i for i, s in enumerate(self._songs) if s.id == event.option.id), None)
         if idx is not None:
+            if self.view.startswith("pl:"):
+                self._playback_source = "playlist"
+            elif self.view.startswith("album:") or self.view in ALBUM_VIEW_LABELS or (self.view == "home" and getattr(self, "_current_spotlight_album_id", None)):
+                self._playback_source = "album"
+            else:
+                self._playback_source = self.view
             self._play_songs(self._songs, idx)
 
     @on(OptionList.OptionSelected, "#queue-list")
@@ -1553,6 +1573,7 @@ class TheIAPlayerApp(KitApp):
         if not self._songs:
             self.notify("still fetching the library — try again in a second", timeout=3)
             return
+        self._playback_source = "shuffle"
         if not self.queue.shuffle:
             self.queue.shuffle = True
             self.query_one("#now", NowPlaying).shuffle = True
@@ -1896,10 +1917,32 @@ class TheIAPlayerApp(KitApp):
             desc = next((d.get("description", selected) for d in devices if d.get("name") == selected), selected)
             self.notify(f"Audio output: {desc}", timeout=3)
 
+    def _is_playlist_playback(self) -> bool:
+        """Determina si la cola actual proviene de una Playlist.
+
+        Regla de negocio: La complementación de escucha (Auto DJ) SOLO debe operar
+        cuando se reproduce una Playlist. Cuando se reproduce un Álbum (o cualquier
+        otra vista que no sea playlist), NUNCA debe agregar canciones complementarias.
+        """
+        source = getattr(self, "_playback_source", "")
+        if source == "playlist":
+            return True
+        if source == "album":
+            return False
+        # Si todos los temas de la cola pertenecen al mismo álbum, es un álbum
+        if self.queue.songs:
+            album_ids = {s.album_id for s in self.queue.songs if s.album_id}
+            if len(album_ids) == 1:
+                return False
+        return self.view.startswith("pl:")
+
     def _check_autoplay(self) -> None:
         if not getattr(self, "autoplay_enabled", True):
             return
         if self.client is None:
+            return
+        # Auto DJ / complementación SOLO aplica cuando se reproduce una Playlist
+        if not self._is_playlist_playback():
             return
         remaining = len(self.queue.songs) - (self.queue.index + 1)
         if remaining <= 3:
@@ -1911,6 +1954,8 @@ class TheIAPlayerApp(KitApp):
     @work(exclusive=True, group="autodj")
     async def _fetch_autoplay_songs(self) -> None:
         try:
+            if not self._is_playlist_playback():
+                return
             seed = self.queue.current
             songs: list[Song] = []
             if seed is not None:
@@ -1942,7 +1987,13 @@ class TheIAPlayerApp(KitApp):
             # Secondary fallback if queue ran out and library is small
             if not songs and getattr(self, "client", None):
                 rand_songs = await self.client.get_random_songs(size=50)
+                rand_songs = self._apply_filters(rand_songs)
+                current_ids = existing_ids | {s.id for s in songs}
+                rand_songs = [s for s in rand_songs if s.id not in current_ids]
                 songs = rand_songs[:12]
+
+            if not self._is_playlist_playback():
+                return
 
             if songs and self.queue.songs:
                 last_artist = self.queue.songs[-1].artist if self.queue.songs else (seed.artist if seed else None)
@@ -2725,6 +2776,7 @@ class TheIAPlayerApp(KitApp):
     def _persist_queue(self, position: float | None = None) -> None:
         data = self.queue.to_dict()
         data["position"] = position if position is not None else (self.player.position if self.player else 0.0)
+        data["playback_source"] = getattr(self, "_playback_source", "other")
         self.dirs.write_cache("queue", data)
 
     # ── playlists ─────────────────────────────────────────────────────
