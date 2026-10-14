@@ -577,14 +577,18 @@ class TheIAPlayerApp(KitApp):
     # ── the heartbeat (all constant animation) ────────────────────────
     def _heartbeat(self) -> None:
         try:
-            self.query_one("#logo", Logo).tick()
             now = self.query_one("#now", NowPlaying)
+            is_playing = bool(self.player is not None and self.player.active and not self.player.paused)
             if self.player is not None:
-                now.set_playing(self.player.active and not self.player.paused)
+                now.set_playing(is_playing)
                 now.set_class(self.player.active, "playing")
-                from theiaplayer.screens import LyricsModal
-                if isinstance(self.screen, LyricsModal):
-                    self.screen.update_time(self.player.position)
+                if is_playing:
+                    from theiaplayer.screens import LyricsModal
+                    if isinstance(self.screen, LyricsModal):
+                        self.screen.update_time(self.player.position)
+
+            if is_playing:
+                self.query_one("#logo", Logo).tick()
 
             # Sleep timer check & fade out
             if self._sleep_timer_end is not None and self.player is not None and self.player.active:
@@ -602,12 +606,24 @@ class TheIAPlayerApp(KitApp):
                     self._render_status()
                     self.notify("💤 Temporizador: reproducción pausada", timeout=4)
 
-            now.tick()
             busy = any(
                 not w.is_finished
                 for w in self.workers
                 if w.group in ("lib", "songs")
             )
+            viz_settling = any(h > 0.01 or p > 0.01 for h, p in zip(now.viz.heights, now.viz.peaks))
+            needs_now_tick = (
+                is_playing
+                or busy
+                or viz_settling
+                or now._title_flash > 0
+                or now._vol_flash > 0
+                or not getattr(now, "_idle_settled", False)
+            )
+            if needs_now_tick:
+                now.tick()
+                now._idle_settled = not (is_playing or viz_settling or now._title_flash > 0 or now._vol_flash > 0)
+
             panel = self.query_one("#tracks-panel")
             if busy:
                 panel.border_subtitle = f"{anim.spinner(int(now._tick))} refreshing"
