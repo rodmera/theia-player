@@ -318,45 +318,82 @@ class SubsonicClient:
         duration: float | None = None,
     ) -> list[dict]:
         import re
+        import asyncio
         _LRC_REGEX = re.compile(r"^\[(\d{1,2}):(\d{2}(?:\.\d{1,3})?)\](.*)")
 
+        def _parse_lrc(synced: str) -> list[dict]:
+            lines = []
+            for raw_line in synced.splitlines():
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                m = _LRC_REGEX.match(raw_line)
+                if m:
+                    mins = int(m.group(1))
+                    secs = float(m.group(2))
+                    ms = int((mins * 60 + secs) * 1000)
+                    val = m.group(3).strip()
+                    lines.append({"start": ms, "value": val})
+                elif not raw_line.startswith("["):
+                    lines.append({"start": None, "value": raw_line})
+            return lines
+
         clean_title = re.sub(r"[\(\[\{].*?[\)\]\}]", "", title).strip() or title
+        clean_title = re.sub(r"\s*-\s*(?:remaster(?:ed)?|live|bonus track|deluxe|version|edit).*", "", clean_title, flags=re.I).strip() or clean_title
+
+        headers = {"User-Agent": "TheIA-Player/1.0 (https://github.com/rodmera/theia-player)"}
+
+        # 1. Petición estricta a /api/get con reintentos para 503
         params = {"artist_name": artist, "track_name": clean_title}
         if album:
             params["album_name"] = album
         if duration and duration > 0:
             params["duration"] = str(int(duration))
 
-        url = "https://lrclib.net/api/get"
-        headers = {"User-Agent": "TheIA-Player/1.0 (https://github.com/rodmera/theia-player)"}
-        try:
-            r = await self._http.get(url, params=params, headers=headers, timeout=4.0)
-            if r.status_code == 200:
-                data = r.json()
-                synced = data.get("syncedLyrics")
-                if synced:
-                    lines = []
-                    for raw_line in synced.splitlines():
-                        raw_line = raw_line.strip()
-                        if not raw_line:
-                            continue
-                        m = _LRC_REGEX.match(raw_line)
-                        if m:
-                            mins = int(m.group(1))
-                            secs = float(m.group(2))
-                            ms = int((mins * 60 + secs) * 1000)
-                            val = m.group(3).strip()
-                            lines.append({"start": ms, "value": val})
-                        elif not raw_line.startswith("["):
-                            lines.append({"start": None, "value": raw_line})
-                    if lines:
-                        return lines
+        url_get = "https://lrclib.net/api/get"
+        for attempt in range(2):
+            try:
+                r = await self._http.get(url_get, params=params, headers=headers, timeout=4.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    synced = data.get("syncedLyrics")
+                    if synced:
+                        lines = _parse_lrc(synced)
+                        if lines:
+                            return lines
+                    plain = data.get("plainLyrics")
+                    if plain:
+                        return [{"start": None, "value": l} for l in plain.splitlines() if l.strip()]
+                elif r.status_code == 503 and attempt == 0:
+                    await asyncio.sleep(0.8)
+                    continue
+                break
+            except Exception:
+                if attempt == 0:
+                    await asyncio.sleep(0.5)
+                    continue
+                break
 
-                plain = data.get("plainLyrics")
-                if plain:
-                    return [{"start": None, "value": l} for l in plain.splitlines() if l.strip()]
+        # 2. Fallback a búsqueda difusa (/api/search)
+        url_search = "https://lrclib.net/api/search"
+        search_params = {"track_name": clean_title, "artist_name": artist}
+        try:
+            r = await self._http.get(url_search, params=search_params, headers=headers, timeout=4.0)
+            if r.status_code == 200:
+                results = r.json()
+                if isinstance(results, list) and results:
+                    best = results[0]
+                    synced = best.get("syncedLyrics")
+                    if synced:
+                        lines = _parse_lrc(synced)
+                        if lines:
+                            return lines
+                    plain = best.get("plainLyrics")
+                    if plain:
+                        return [{"start": None, "value": l} for l in plain.splitlines() if l.strip()]
         except Exception:
             pass
+
         return []
 
     # ── cover art ─────────────────────────────────────────────────────
