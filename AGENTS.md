@@ -8,7 +8,7 @@ Fork de [theia-player](https://github.com/Gheat1/theia-player). TUI music player
 ## 🚨 CRITICAL: DEFINICIÓN DE HECHO (DoD) — CHECKLIST MANDATORIO
 **Antes de dar por completada cualquier tarea y declarar "listo", el agente DEBE ejecutar obligatoriamente este checklist en orden:**
 
-1. **Asegurar Calidad Local:** Ejecutar las pruebas unitarias (`.venv/bin/python3 -m pytest`) y el generador headless (`.venv/bin/python3 tools/screenshots.py`) para verificar que no haya regresiones.
+1. **Asegurar Calidad Local:** Ejecutar las pruebas unitarias (`.venv/bin/python3 -m pytest`) y el generador headless (`.venv/bin/python3 tools/screenshots.py`) para verificar que no haya regresiones. El pre-commit versionado (`.githooks/pre-commit`) corre la suite si el commit toca Python; se activa una vez por clon con `ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit`.
 2. **Incrementar Versión (SemVer):** Si hay cambios lógicos o correcciones, incrementar progresivamente la versión en:
    * `theiaplayer/__init__.py` (variable `__version__`)
    * `pyproject.toml` (directiva `version = "X.Y.Z"`)
