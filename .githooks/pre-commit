@@ -1,0 +1,10 @@
+#!/bin/bash
+# Pre-commit: la suite de pruebas debe pasar antes de commitear (solo si el commit toca Python, pytest o pyproject).
+# Se activa con:  ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
+# Forzar la corrida completa:  PRECOMMIT_ALL=1 .githooks/pre-commit
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if [ -n "${PRECOMMIT_ALL:-}" ] || git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.py$|pytest\.ini$|pyproject\.toml$'; then
+  echo "==> [pre-commit] pytest (-n 2, prioridad baja)"
+  nice -n 10 .venv/bin/python3 -m pytest -q -n 2 -p no:cacheprovider
+fi
